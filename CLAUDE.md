@@ -25,7 +25,7 @@ Deferred (see BACKLOG.md): layers, Bounce/Random modes, instrument selection, te
 - Single `index.html` for M1. Split into modules only when it earns it.
 - Tone.js for synthesis + scheduling (Transport-driven 16-step loop). Rationale: rock-solid timing; jitter is the #1 killer of homemade sequencers.
 - Canvas renderer via requestAnimationFrame.
-- No build step. Deploy = push to Netlify. Matches Family Hub philosophy.
+- No build step. Manual deploys only: `netlify deploy` for a draft URL, `netlify deploy --prod` when Matt decides to publish. GitHub pushes do NOT deploy (CI builds stopped on the Netlify site). Site: touchsynth.netlify.app.
 
 ## Architecture seams (protect these)
 1. **State** — 16×16 boolean grid (later: array of layer grids). Dumb data. No logic.
