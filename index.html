@@ -39,20 +39,44 @@ const synth = new Tone.PolySynth(Tone.Synth, {
 // ponytail: limiter only, no reverb/FX chain — add a small Tone.Reverb if it sounds too dry on the panel
 synth.chain(new Tone.Limiter(-3), Tone.Destination);
 
-let playhead = -1;   // render-side copy, updated in sync with audio via Tone.Draw
+let mode = 'score';  // which "what fires when" strategy is live
+let playhead = -1;   // render-side copies, updated in sync with audio via Tone.Draw
+let drawStep = -1, drawStepAt = 0;
 let audioStep = -1;  // audio-side step counter
+const STEP_MS = 60000 / 110 / 4; // one 16th at the fixed 110 BPM
+
+const MODES = {
+  // Score: playhead sweeps left→right, active cells in the current column fire.
+  // Pitch = row (bottom low, top high).
+  score(step, time) {
+    const col = step % N;
+    for (let row = 0; row < N; row++) {
+      if (grid[col][row]) {
+        synth.triggerAttackRelease(SCALE[N - 1 - row], '16n', time);
+        Tone.Draw.schedule(() => spawnRipple(col, row), time);
+      }
+    }
+    Tone.Draw.schedule(() => { playhead = col; }, time);
+  },
+  // Bounce: each active cell drops a ball that strikes the floor every (16 - row)
+  // sixteenths — higher placement = slower pulse. Pitch = column (left low, right high).
+  bounce(step, time) {
+    for (let col = 0; col < N; col++) {
+      for (let row = 0; row < N; row++) {
+        if (grid[col][row] && step % (N - row) === 0) {
+          synth.triggerAttackRelease(SCALE[col], '16n', time);
+          Tone.Draw.schedule(() => spawnRipple(col, N - 1), time);
+        }
+      }
+    }
+  },
+};
 
 Tone.Transport.bpm.value = 110;
 Tone.Transport.scheduleRepeat((time) => {
-  audioStep = (audioStep + 1) % N;
-  const col = audioStep;
-  for (let row = 0; row < N; row++) {
-    if (grid[col][row]) {
-      synth.triggerAttackRelease(SCALE[N - 1 - row], '16n', time);
-      Tone.Draw.schedule(() => spawnRipple(col, row), time);
-    }
-  }
-  Tone.Draw.schedule(() => { playhead = col; }, time);
+  audioStep++;
+  MODES[mode](audioStep, time);
+  Tone.Draw.schedule(() => { drawStep = audioStep; drawStepAt = performance.now(); }, time);
 }, '16n');
 
 // ---------- Renderer (reads state + ripple queue, decides nothing) ----------
@@ -84,6 +108,12 @@ function clearButton() {
   const r = Math.max(18, cell * 0.4);
   return { x: innerWidth - r - 20, y: innerHeight - r - 20, r };
 }
+// Mode switcher: two small buttons, bottom-left corner
+function modeButtons() {
+  const r = Math.max(18, cell * 0.4);
+  return ['score', 'bounce'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y: innerHeight - r - 20, r }));
+}
+
 function clearGrid() {
   for (let col = 0; col < N; col++) {
     for (let row = 0; row < N; row++) {
@@ -106,7 +136,7 @@ function draw(now) {
 
   const r = Math.max(2, cell * 0.18); // corner radius
   for (let col = 0; col < N; col++) {
-    const onCol = col === playhead;
+    const onCol = mode === 'score' && col === playhead;
     for (let row = 0; row < N; row++) {
       const x = ox + col * cell + gap / 2;
       const y = oy + row * cell + gap / 2;
@@ -119,6 +149,24 @@ function draw(now) {
       ctx.beginPath();
       ctx.roundRect(x, y, s, s, r);
       ctx.fill();
+    }
+  }
+
+  // Bounce balls — position derived from the audio step clock, renderer decides nothing
+  if (mode === 'bounce' && drawStep >= 0) {
+    const frac = Math.min(1, (now - drawStepAt) / STEP_MS);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    for (let col = 0; col < N; col++) {
+      for (let row = 0; row < N - 1; row++) { // bottom row sits on the floor, no ball to draw
+        if (!grid[col][row]) continue;
+        const interval = N - row;
+        const p = ((drawStep % interval) + frac) / interval;
+        const h = Math.sin(p * Math.PI); // 0 at floor, 1 at the placed cell; slow at the apex like a real bounce
+        const yRow = (N - 1) - (N - 1 - row) * h;
+        ctx.beginPath();
+        ctx.arc(ox + col * cell + cell / 2, oy + yRow * cell + cell / 2, cell * 0.16, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
@@ -141,6 +189,30 @@ function draw(now) {
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  // Mode buttons
+  for (const b of modeButtons()) {
+    const active = mode === b.m;
+    ctx.fillStyle = active ? 'rgba(95,212,232,0.22)' : 'rgba(120,150,180,0.12)';
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+    if (active) {
+      ctx.strokeStyle = 'rgba(140,225,245,0.8)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
+    }
+    const ink = active ? 'rgba(230,250,255,0.9)' : 'rgba(160,185,210,0.55)';
+    ctx.fillStyle = ink; ctx.strokeStyle = ink;
+    if (b.m === 'score') { // play triangle
+      ctx.beginPath();
+      ctx.moveTo(b.x - b.r * 0.28, b.y - b.r * 0.38);
+      ctx.lineTo(b.x + b.r * 0.42, b.y);
+      ctx.lineTo(b.x - b.r * 0.28, b.y + b.r * 0.38);
+      ctx.closePath(); ctx.fill();
+    } else { // ball over a floor line
+      ctx.beginPath(); ctx.arc(b.x, b.y - b.r * 0.15, b.r * 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(b.x - b.r * 0.4, b.y + b.r * 0.42); ctx.lineTo(b.x + b.r * 0.4, b.y + b.r * 0.42); ctx.stroke();
+    }
   }
 
   // Clear button + hold progress ring
@@ -186,6 +258,9 @@ canvas.addEventListener('pointerdown', async (e) => {
   if (Math.hypot(e.clientX - btn.x, e.clientY - btn.y) <= btn.r + 6) {
     clearHoldStart = performance.now();
     return;
+  }
+  for (const b of modeButtons()) {
+    if (Math.hypot(e.clientX - b.x, e.clientY - b.y) <= b.r + 6) { mode = b.m; return; }
   }
   const col = Math.floor((e.clientX - ox) / cell);
   const row = Math.floor((e.clientY - oy) / cell);

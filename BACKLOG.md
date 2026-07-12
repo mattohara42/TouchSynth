@@ -13,7 +13,7 @@
 - [x] Ripple cap (96 max, oldest dropped) so long sessions don't leak
 
 ## Next (M2 candidates — decide after M1 ships)
-- [ ] Bounce mode (notes fall and trigger on bounce; needs the mode seam)
+- [x] Bounce mode + mode seam: engine strategies in MODES{}, switcher = 2 buttons bottom-left (2026-07-12)
 - [ ] Random mode (light-trail traveling melody)
 - [ ] 2–3 layers with simple layer switcher (big buttons, not the original's 16)
 - [ ] Tempo control (hidden/grown-up area?)
@@ -41,3 +41,5 @@
 - 2026-07-12: Added .claude/launch.json (npx http-server on :8321) as the dev preview server — dev convenience only, not part of deploy.
 - 2026-07-12: launch.json switched to autoPort (port 8321 was taken by another session; a static server doesn't care which port).
 - 2026-07-12: Clear-grid interaction = hold-to-clear ✕ button, bottom-right, ~1s with progress ring, ripple burst on wipe. Rationale: instant tap risks accidental wipes by kids; hold-with-feedback is still zero-instruction. Button sits in the corner margin — could overlap the grid in near-square windows, fine on the 16:9 panel (ponytail comment in index.html).
+- 2026-07-12: Bounce mode semantics (faithful to the original): pitch = COLUMN (left low → right high), height = pulse rate (ball strikes floor every 16−row sixteenths, so top row = once/bar, bottom = every 16th). All balls phase-locked to the global step counter → guaranteed polyrhythms, no free-running physics. Grid state is shared across modes (one layer for now); a pattern sounds different per mode, which is the fun.
+- 2026-07-12: Mode switcher = two icon buttons (play triangle / ball-over-floor) bottom-left, mirroring the clear button. Tap switches instantly, no confirmation.
