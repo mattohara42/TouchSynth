@@ -82,7 +82,7 @@ Tone.Transport.scheduleRepeat((time) => {
 // ---------- Renderer (reads state + ripple queue, decides nothing) ----------
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-let cell = 0, gap = 0, ox = 0, oy = 0; // cell size, gap, grid origin
+let cell = 0, gap = 0, ox = 0, oy = 0, bar = 0; // cell size, gap, grid origin, control strip height
 
 function layout() {
   const dpr = window.devicePixelRatio || 1;
@@ -91,27 +91,27 @@ function layout() {
   canvas.style.width = innerWidth + 'px';
   canvas.style.height = innerHeight + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const size = Math.min(innerWidth, innerHeight) * 0.94;
+  bar = Math.max(64, innerHeight * 0.09); // controls live here, never over the grid
+  const size = Math.min(innerWidth, innerHeight - bar) * 0.94;
   cell = size / N;
   gap = cell * 0.14;
   ox = (innerWidth - size) / 2;
-  oy = (innerHeight - size) / 2;
+  oy = (innerHeight - bar - size) / 2;
 }
 addEventListener('resize', layout);
 layout();
 
 // Clear button: hold ~1s to wipe the grid. Hold-with-progress-ring so a stray tap never wipes a kid's pattern.
-// ponytail: fixed bottom-right corner — can overlap the grid in near-square windows; panel is 16:9 so fine
 const CLEAR_HOLD_MS = 1000;
 let clearHoldStart = null;
 function clearButton() {
-  const r = Math.max(18, cell * 0.4);
-  return { x: innerWidth - r - 20, y: innerHeight - r - 20, r };
+  const r = bar * 0.34;
+  return { x: innerWidth - r - 20, y: innerHeight - bar / 2, r };
 }
-// Mode switcher: two small buttons, bottom-left corner
+// Mode switcher: two small buttons, bottom-left of the control strip
 function modeButtons() {
-  const r = Math.max(18, cell * 0.4);
-  return ['score', 'bounce'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y: innerHeight - r - 20, r }));
+  const r = bar * 0.34;
+  return ['score', 'bounce'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y: innerHeight - bar / 2, r }));
 }
 
 function clearGrid() {
