@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Grid Sings</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0a0e14; overflow: hidden; }
+  canvas { display: block; touch-action: none; }
+  #hint {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #7d8fa3; font: 300 clamp(20px, 3vw, 34px) system-ui, sans-serif;
+    letter-spacing: 0.08em; pointer-events: none; transition: opacity 0.8s;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">tap anywhere to begin</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<script>
+'use strict';
+const N = 16;
+
+// ---------- State (dumb data, no logic) ----------
+// grid[col][row], row 0 = top of screen
+const grid = Array.from({ length: N }, () => Array(N).fill(false));
+
+// ---------- Audio engine (owns timing, never touches the render loop) ----------
+// C major pentatonic, C3 up to C6. Row 0 (top) maps to the highest note.
+const NOTE_NAMES = ['C', 'D', 'E', 'G', 'A'];
+const SCALE = Array.from({ length: N }, (_, i) => NOTE_NAMES[i % 5] + (3 + Math.floor(i / 5)));
+
+const synth = new Tone.PolySynth(Tone.Synth, {
+  volume: -8,
+  oscillator: { type: 'triangle' },
+  envelope: { attack: 0.005, decay: 0.25, sustain: 0.1, release: 0.6 },
+});
+// ponytail: limiter only, no reverb/FX chain — add a small Tone.Reverb if it sounds too dry on the panel
+synth.chain(new Tone.Limiter(-3), Tone.Destination);
+
+let playhead = -1;   // render-side copy, updated in sync with audio via Tone.Draw
+let audioStep = -1;  // audio-side step counter
+
+Tone.Transport.bpm.value = 110;
+Tone.Transport.scheduleRepeat((time) => {
+  audioStep = (audioStep + 1) % N;
+  const col = audioStep;
+  for (let row = 0; row < N; row++) {
+    if (grid[col][row]) {
+      synth.triggerAttackRelease(SCALE[N - 1 - row], '16n', time);
+      Tone.Draw.schedule(() => spawnRipple(col, row), time);
+    }
+  }
+  Tone.Draw.schedule(() => { playhead = col; }, time);
+}, '16n');
+
+// ---------- Renderer (reads state + ripple queue, decides nothing) ----------
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let cell = 0, gap = 0, ox = 0, oy = 0; // cell size, gap, grid origin
+
+function layout() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = innerWidth * dpr;
+  canvas.height = innerHeight * dpr;
+  canvas.style.width = innerWidth + 'px';
+  canvas.style.height = innerHeight + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const size = Math.min(innerWidth, innerHeight) * 0.94;
+  cell = size / N;
+  gap = cell * 0.14;
+  ox = (innerWidth - size) / 2;
+  oy = (innerHeight - size) / 2;
+}
+addEventListener('resize', layout);
+layout();
+
+// Ripples: fixed-size pool, oldest overwritten — no unbounded arrays for all-day sessions
+const RIPPLE_MAX = 96, RIPPLE_MS = 700;
+const ripples = [];
+function spawnRipple(col, row) {
+  if (ripples.length >= RIPPLE_MAX) ripples.shift();
+  ripples.push({ col, row, born: performance.now() });
+}
+
+function draw(now) {
+  ctx.fillStyle = '#0a0e14';
+  ctx.fillRect(0, 0, innerWidth, innerHeight);
+
+  const r = Math.max(2, cell * 0.18); // corner radius
+  for (let col = 0; col < N; col++) {
+    const onCol = col === playhead;
+    for (let row = 0; row < N; row++) {
+      const x = ox + col * cell + gap / 2;
+      const y = oy + row * cell + gap / 2;
+      const s = cell - gap;
+      if (grid[col][row]) {
+        ctx.fillStyle = onCol ? '#ffffff' : '#5fd4e8';
+      } else {
+        ctx.fillStyle = onCol ? 'rgba(120,150,180,0.28)' : 'rgba(120,150,180,0.10)';
+      }
+      ctx.beginPath();
+      ctx.roundRect(x, y, s, s, r);
+      ctx.fill();
+    }
+  }
+
+  // Ripples — the signature visual: expanding ring + soft glow, eased fade
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    const rp = ripples[i];
+    const t = (now - rp.born) / RIPPLE_MS;
+    if (t >= 1) { ripples.splice(i, 1); continue; }
+    const cx = ox + rp.col * cell + cell / 2;
+    const cy = oy + rp.row * cell + cell / 2;
+    const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    const radius = cell * (0.4 + ease * 2.2);
+    const alpha = (1 - t) * 0.9;
+    ctx.strokeStyle = `rgba(140, 225, 245, ${alpha})`;
+    ctx.lineWidth = Math.max(1.5, cell * 0.09 * (1 - t));
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = `rgba(140, 225, 245, ${alpha * 0.15})`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+// ---------- Input ----------
+let started = false;
+canvas.addEventListener('pointerdown', async (e) => {
+  e.preventDefault();
+  if (!started) {
+    started = true;
+    await Tone.start();
+    Tone.Transport.start();
+    document.getElementById('hint').style.opacity = '0';
+  }
+  const col = Math.floor((e.clientX - ox) / cell);
+  const row = Math.floor((e.clientY - oy) / cell);
+  if (col >= 0 && col < N && row >= 0 && row < N) {
+    grid[col][row] = !grid[col][row];
+    if (grid[col][row]) spawnRipple(col, row); // immediate feedback on placement
+  }
+});
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// Self-check: scale mapping sanity (visible in console only, costs nothing)
+console.assert(SCALE[0] === 'C3' && SCALE[15] === 'C6' && SCALE.length === 16, 'pentatonic mapping broken', SCALE);
+</script>
+</body>
+</html>
