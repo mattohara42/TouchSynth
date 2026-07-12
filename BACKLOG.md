@@ -1,7 +1,8 @@
 # BACKLOG — Grid Sings
 
 ## Now (M1 — "The Grid Sings")
-- [ ] Repo + Netlify site created, index.html scaffold deployed (index.html built; git init + Netlify still to do)
+- [ ] Repo + Netlify site created, index.html scaffold deployed (git init + M1 commit done 2026-07-12; Netlify site creation awaiting Matt's go-ahead)
+- [x] Clear-grid control: hold ✕ button (bottom-right, ~1s) with progress ring; ripples on wipe (pulled forward from M2)
 - [x] 16×16 grid rendered on Canvas, fullscreen, dark background
 - [x] Tap-to-toggle cells (touch + mouse), scroll/zoom prevented on grid
 - [x] Tone.js Transport 16-step loop at ~110 BPM
@@ -15,7 +16,6 @@
 - [ ] Bounce mode (notes fall and trigger on bounce; needs the mode seam)
 - [ ] Random mode (light-trail traveling melody)
 - [ ] 2–3 layers with simple layer switcher (big buttons, not the original's 16)
-- [ ] Clear-grid gesture or button (kids will want a reset; decide interaction)
 - [ ] Tempo control (hidden/grown-up area?)
 
 ## Later / Ideas
@@ -39,3 +39,5 @@
 - 2026-07-12: Playhead visual = whole column lightened; active cell under playhead flashes white. Simplest readable sweep.
 - 2026-07-12: Tapping a cell ON spawns an immediate ripple as placement feedback (in addition to trigger ripples). Felt right for "no wrong notes"; easy to remove.
 - 2026-07-12: Added .claude/launch.json (npx http-server on :8321) as the dev preview server — dev convenience only, not part of deploy.
+- 2026-07-12: launch.json switched to autoPort (port 8321 was taken by another session; a static server doesn't care which port).
+- 2026-07-12: Clear-grid interaction = hold-to-clear ✕ button, bottom-right, ~1s with progress ring, ripple burst on wipe. Rationale: instant tap risks accidental wipes by kids; hold-with-feedback is still zero-instruction. Button sits in the corner margin — could overlap the grid in near-square windows, fine on the 16:9 panel (ponytail comment in index.html).

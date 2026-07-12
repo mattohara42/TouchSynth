@@ -76,6 +76,22 @@ function layout() {
 addEventListener('resize', layout);
 layout();
 
+// Clear button: hold ~1s to wipe the grid. Hold-with-progress-ring so a stray tap never wipes a kid's pattern.
+// ponytail: fixed bottom-right corner — can overlap the grid in near-square windows; panel is 16:9 so fine
+const CLEAR_HOLD_MS = 1000;
+let clearHoldStart = null;
+function clearButton() {
+  const r = Math.max(18, cell * 0.4);
+  return { x: innerWidth - r - 20, y: innerHeight - r - 20, r };
+}
+function clearGrid() {
+  for (let col = 0; col < N; col++) {
+    for (let row = 0; row < N; row++) {
+      if (grid[col][row]) { grid[col][row] = false; spawnRipple(col, row); }
+    }
+  }
+}
+
 // Ripples: fixed-size pool, oldest overwritten — no unbounded arrays for all-day sessions
 const RIPPLE_MAX = 96, RIPPLE_MS = 700;
 const ripples = [];
@@ -127,6 +143,31 @@ function draw(now) {
     ctx.fill();
   }
 
+  // Clear button + hold progress ring
+  const btn = clearButton();
+  const holding = clearHoldStart !== null;
+  const progress = holding ? Math.min(1, (now - clearHoldStart) / CLEAR_HOLD_MS) : 0;
+  if (progress >= 1) { clearGrid(); clearHoldStart = null; }
+  ctx.fillStyle = holding ? 'rgba(120,150,180,0.30)' : 'rgba(120,150,180,0.12)';
+  ctx.beginPath();
+  ctx.arc(btn.x, btn.y, btn.r, 0, Math.PI * 2);
+  ctx.fill();
+  const arm = btn.r * 0.4;
+  ctx.strokeStyle = 'rgba(160,185,210,0.55)';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(btn.x - arm, btn.y - arm); ctx.lineTo(btn.x + arm, btn.y + arm);
+  ctx.moveTo(btn.x + arm, btn.y - arm); ctx.lineTo(btn.x - arm, btn.y + arm);
+  ctx.stroke();
+  if (holding) {
+    ctx.strokeStyle = 'rgba(140,225,245,0.9)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(btn.x, btn.y, btn.r + 4, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+    ctx.stroke();
+  }
+
   requestAnimationFrame(draw);
 }
 requestAnimationFrame(draw);
@@ -141,6 +182,11 @@ canvas.addEventListener('pointerdown', async (e) => {
     Tone.Transport.start();
     document.getElementById('hint').style.opacity = '0';
   }
+  const btn = clearButton();
+  if (Math.hypot(e.clientX - btn.x, e.clientY - btn.y) <= btn.r + 6) {
+    clearHoldStart = performance.now();
+    return;
+  }
   const col = Math.floor((e.clientX - ox) / cell);
   const row = Math.floor((e.clientY - oy) / cell);
   if (col >= 0 && col < N && row >= 0 && row < N) {
@@ -148,6 +194,8 @@ canvas.addEventListener('pointerdown', async (e) => {
     if (grid[col][row]) spawnRipple(col, row); // immediate feedback on placement
   }
 });
+addEventListener('pointerup', () => { clearHoldStart = null; });
+addEventListener('pointercancel', () => { clearHoldStart = null; });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // Self-check: scale mapping sanity (visible in console only, costs nothing)
