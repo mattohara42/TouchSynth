@@ -1,7 +1,7 @@
 # BACKLOG — Grid Sings
 
 ## Now (M1 — "The Grid Sings")
-- [ ] Repo + Netlify site created, index.html scaffold deployed (git init + M1 commit done 2026-07-12; Netlify site creation awaiting Matt's go-ahead)
+- [ ] Repo + Netlify site created, index.html scaffold deployed (repo live at github.com/mattohara42/TouchSynth 2026-07-12; Netlify site creation awaiting Matt's go-ahead)
 - [x] Clear-grid control: hold ✕ button (bottom-right, ~1s) with progress ring; ripples on wipe (pulled forward from M2)
 - [x] 16×16 grid rendered on Canvas, fullscreen, dark background
 - [x] Tap-to-toggle cells (touch + mouse), scroll/zoom prevented on grid
