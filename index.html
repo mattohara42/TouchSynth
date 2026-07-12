@@ -33,10 +33,11 @@ const placed = [];
 const NOTE_NAMES = ['C', 'D', 'E', 'G', 'A'];
 const SCALE = Array.from({ length: N }, (_, i) => NOTE_NAMES[i % 5] + (3 + Math.floor(i / 5)));
 
+// Marimba-ish mallet voice to match the candy look: odd-ish partials, instant attack, no sustain
 const synth = new Tone.PolySynth(Tone.Synth, {
   volume: -8,
-  oscillator: { type: 'triangle' },
-  envelope: { attack: 0.005, decay: 0.25, sustain: 0.1, release: 0.6 },
+  oscillator: { partials: [1, 0, 2, 0, 3] },
+  envelope: { attack: 0.001, decay: 1.2, sustain: 0, release: 1.2 },
 });
 // ponytail: limiter only, no reverb/FX chain — add a small Tone.Reverb if it sounds too dry on the panel
 synth.chain(new Tone.Limiter(-3), Tone.Destination);
