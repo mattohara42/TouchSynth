@@ -291,10 +291,66 @@ function draw(now) {
 }
 requestAnimationFrame(draw);
 
+// ---------- Idle attract: after 2 min untouched with an empty grid, a ghost plays gentle presets ----------
+const IDLE_MS = 2 * 60 * 1000;
+const ATTRACT_TICK_MS = 900;
+const ATTRACT_HOLD_MS = 30000;
+let lastTouch = performance.now();
+let attract = null; // non-null while the ghost owns the grid
+let attractIdx = 0;
+
+const ATTRACT_PATTERNS = [
+  // rolling wave across the full width
+  () => Array.from({ length: N }, (_, c) => [c, Math.round(7.5 + 4 * Math.sin((c / N) * Math.PI * 2))]),
+  // sparse bobbing arpeggio
+  () => [0, 2, 4, 6, 8, 10, 12, 14].map((c, i) => [c, [12, 9, 6, 9][i % 4]]),
+];
+
+function startAttract() {
+  mode = 'score';
+  attract = {
+    phase: 'placing', i: 0, holdUntil: 0,
+    dots: ATTRACT_PATTERNS[attractIdx++ % ATTRACT_PATTERNS.length](),
+    timer: setInterval(() => {
+      if (attract.phase === 'placing') {
+        const [c, r] = attract.dots[attract.i++];
+        grid[c][r] = true; placed.push({ col: c, row: r }); spawnRipple(c, r);
+        if (attract.i >= attract.dots.length) {
+          attract.phase = 'holding';
+          attract.holdUntil = performance.now() + ATTRACT_HOLD_MS;
+        }
+      } else if (attract.phase === 'holding') {
+        if (performance.now() >= attract.holdUntil) attract.phase = 'removing';
+      } else {
+        const [c, r] = attract.dots.pop();
+        grid[c][r] = false;
+        const j = placed.findIndex((p) => p.col === c && p.row === r);
+        if (j >= 0) placed.splice(j, 1);
+        if (!attract.dots.length) {
+          stopAttract();
+          lastTouch = performance.now() - IDLE_MS + 10000; // next pattern in ~10s if still untouched
+        }
+      }
+    }, ATTRACT_TICK_MS),
+  };
+}
+
+function stopAttract() {
+  clearInterval(attract.timer);
+  attract = null;
+  clearGrid(); // dissolve whatever the ghost left, with ripples
+}
+
+setInterval(() => {
+  if (started && !attract && placed.length === 0 && performance.now() - lastTouch >= IDLE_MS) startAttract();
+}, 1000);
+
 // ---------- Input ----------
 let started = false;
 canvas.addEventListener('pointerdown', async (e) => {
   e.preventDefault();
+  lastTouch = performance.now();
+  if (attract) stopAttract(); // hand the grid to the kid instantly
   if (!started) {
     started = true;
     await Tone.start();
