@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Grid Sings</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #0a0e14; overflow: hidden; }
+  html, body { margin: 0; height: 100%; background: #1a1024; overflow: hidden; }
   canvas { display: block; touch-action: none; }
   #hint {
     position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: #7d8fa3; font: 300 clamp(20px, 3vw, 34px) system-ui, sans-serif;
+    color: #9b8bb0; font: 300 clamp(20px, 3vw, 34px) system-ui, sans-serif;
     letter-spacing: 0.08em; pointer-events: none; transition: opacity 0.8s;
   }
 </style>
@@ -68,7 +68,7 @@ const MODES = {
       for (let row = 0; row < N; row++) {
         if (grid[col][row] && step % (N - row) === 0) {
           synth.triggerAttackRelease(SCALE[col], '16n', time);
-          Tone.Draw.schedule(() => { spawnRipple(col, N - 1); poke(col, N - 1); }, time);
+          Tone.Draw.schedule(() => { spawnRipple(col, N - 1, col % 5); poke(col, N - 1); }, time);
         }
       }
     }
@@ -99,6 +99,30 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 let cell = 0, gap = 0, ox = 0, oy = 0, bar = 0; // cell size, gap, grid origin, control strip height
 
+// Candy palette by PITCH CLASS: same note = same color in every octave (C D E G A).
+// Score/Random pitch = row → ci = (N-1-row) % 5; Bounce pitch = column → ci = col % 5.
+const CANDY = ['255,107,129', '255,169,77', '255,212,59', '61,220,151', '94,168,255']; // strawberry mango lemon mint blueberry
+const sprites = []; // pre-rendered glossy blobs, one per pitch class + white flash at [5] — no per-frame gradients on the panel
+function makeSprites() {
+  const dpr = window.devicePixelRatio || 1;
+  const s = Math.max(4, Math.ceil((cell - gap) * dpr));
+  [...CANDY.map((c) => `rgb(${c})`), '#ffffff'].forEach((base, i) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = s;
+    const g = c.getContext('2d');
+    g.beginPath(); g.roundRect(0, 0, s, s, s * 0.32); g.clip();
+    g.fillStyle = base; g.fillRect(0, 0, s, s);
+    const sheen = g.createRadialGradient(s * 0.3, s * 0.25, 0, s * 0.3, s * 0.25, s * 0.95);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.42)');
+    sheen.addColorStop(0.55, 'rgba(255,255,255,0.04)');
+    sheen.addColorStop(1, 'rgba(0,0,0,0.20)');
+    g.fillStyle = sheen; g.fillRect(0, 0, s, s);
+    g.fillStyle = 'rgba(255,255,255,0.5)'; // wet highlight
+    g.beginPath(); g.ellipse(s * 0.32, s * 0.22, s * 0.16, s * 0.09, -0.4, 0, Math.PI * 2); g.fill();
+    sprites[i] = c;
+  });
+}
+
 function layout() {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = innerWidth * dpr;
@@ -112,6 +136,7 @@ function layout() {
   gap = cell * 0.14;
   ox = (innerWidth - size) / 2;
   oy = (innerHeight - bar - size) / 2;
+  makeSprites();
 }
 addEventListener('resize', layout);
 layout();
@@ -160,13 +185,13 @@ function btnScale(id, now) {
 // Ripples: fixed-size pool, oldest overwritten — no unbounded arrays for all-day sessions
 const RIPPLE_MAX = 96, RIPPLE_MS = 700;
 const ripples = [];
-function spawnRipple(col, row) {
+function spawnRipple(col, row, ci = (N - 1 - row) % 5) { // ci: pitch-class color; default matches row-pitch modes
   if (ripples.length >= RIPPLE_MAX) ripples.shift();
-  ripples.push({ col, row, born: performance.now() });
+  ripples.push({ col, row, ci, born: performance.now() });
 }
 
 function draw(now) {
-  ctx.fillStyle = '#0a0e14';
+  ctx.fillStyle = '#1a1024';
   ctx.fillRect(0, 0, innerWidth, innerHeight);
 
   // Membrane pass: age ripples once and keep ring geometry — cells sample it below, ring draw reuses it
@@ -178,6 +203,7 @@ function draw(now) {
       cx: ox + ripples[i].col * cell + cell / 2,
       cy: oy + ripples[i].row * cell + cell / 2,
       radius: cell * (0.4 + (1 - Math.pow(1 - t, 3)) * 2.2),
+      ci: ripples[i].ci,
       t,
     });
   }
@@ -190,7 +216,6 @@ function draw(now) {
     bandX = from + (to - from) * spring(Math.min(1, (now - drawStepAt) / STEP_MS));
   }
 
-  const r = Math.max(2, cell * 0.18); // corner radius
   for (let col = 0; col < N; col++) {
     for (let row = 0; row < N; row++) {
       const x = ox + col * cell + gap / 2;
@@ -227,11 +252,16 @@ function draw(now) {
         const bd = (ccx - bandX) / (cell * 1.2);
         const k = 1 + 0.10 * Math.exp(-bd * bd); sx *= k; sy *= k;
       }
-      ctx.fillStyle = grid[col][row] ? (tf < 0.22 ? '#ffffff' : '#5fd4e8') : 'rgba(120,150,180,0.10)';
       const w = s * sx, h = s * sy;
-      ctx.beginPath();
-      ctx.roundRect(x + (s - w) / 2 + mx, y + (s - h) / 2 + my, w, h, r * Math.min(sx, sy, 1));
-      ctx.fill();
+      if (grid[col][row]) { // glossy candy blob; gloss stretches with the squash
+        ctx.drawImage(sprites[tf < 0.22 ? 5 : (N - 1 - row) % 5], x + (s - w) / 2 + mx, y + (s - h) / 2 + my, w, h);
+      } else { // idle cells are small soft dots — the inflate-on-toggle has somewhere to go
+        const dw = w * 0.5, dh = h * 0.5;
+        ctx.fillStyle = 'rgba(190,160,215,0.14)';
+        ctx.beginPath();
+        ctx.roundRect(x + (s - dw) / 2 + mx, y + (s - dh) / 2 + my, dw, dh, Math.min(dw, dh) / 2);
+        ctx.fill();
+      }
     }
   }
 
@@ -239,9 +269,9 @@ function draw(now) {
   if (bandX !== null) {
     const gw = cell * 1.6;
     const g = ctx.createLinearGradient(bandX - gw, 0, bandX + gw, 0);
-    g.addColorStop(0, 'rgba(140,225,245,0)');
-    g.addColorStop(0.5, 'rgba(140,225,245,0.10)');
-    g.addColorStop(1, 'rgba(140,225,245,0)');
+    g.addColorStop(0, 'rgba(255,235,250,0)');
+    g.addColorStop(0.5, 'rgba(255,235,250,0.09)');
+    g.addColorStop(1, 'rgba(255,235,250,0)');
     ctx.fillStyle = g;
     ctx.fillRect(bandX - gw, oy, gw * 2, N * cell);
   }
@@ -277,8 +307,8 @@ function draw(now) {
     const px = fx + (tx - fx) * frac, py = fy + (ty - fy) * frac;
     if (px !== fx || py !== fy) {
       const grad = ctx.createLinearGradient(fx, fy, px, py);
-      grad.addColorStop(0, 'rgba(140,225,245,0)');
-      grad.addColorStop(1, 'rgba(140,225,245,0.6)');
+      grad.addColorStop(0, 'rgba(255,190,225,0)');
+      grad.addColorStop(1, 'rgba(255,190,225,0.6)');
       ctx.strokeStyle = grad;
       ctx.lineWidth = Math.max(2, cell * 0.08);
       ctx.lineCap = 'round';
@@ -288,15 +318,15 @@ function draw(now) {
     ctx.beginPath(); ctx.arc(px, py, cell * 0.18, 0, Math.PI * 2); ctx.fill();
   }
 
-  // Ripples — the signature visual: expanding ring + soft glow (geometry from the membrane pass)
+  // Ripples — the signature visual: expanding ring + soft glow in the note's own candy color
   for (const wv of waves) {
     const alpha = (1 - wv.t) * 0.9;
-    ctx.strokeStyle = `rgba(140, 225, 245, ${alpha})`;
-    ctx.lineWidth = Math.max(1.5, cell * 0.09 * (1 - wv.t));
+    ctx.strokeStyle = `rgba(${CANDY[wv.ci]}, ${alpha})`;
+    ctx.lineWidth = Math.max(1.5, cell * 0.11 * (1 - wv.t));
     ctx.beginPath();
     ctx.arc(wv.cx, wv.cy, wv.radius, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = `rgba(140, 225, 245, ${alpha * 0.15})`;
+    ctx.fillStyle = `rgba(${CANDY[wv.ci]}, ${alpha * 0.15})`;
     ctx.beginPath();
     ctx.arc(wv.cx, wv.cy, wv.radius, 0, Math.PI * 2);
     ctx.fill();
@@ -307,13 +337,13 @@ function draw(now) {
     const bk = btnScale(b.m, now);
     ctx.save(); ctx.translate(b.x, b.y); ctx.scale(bk, bk); ctx.translate(-b.x, -b.y);
     const active = mode === b.m;
-    ctx.fillStyle = active ? 'rgba(95,212,232,0.22)' : 'rgba(120,150,180,0.12)';
+    ctx.fillStyle = active ? 'rgba(255,140,190,0.22)' : 'rgba(190,160,215,0.12)';
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
     if (active) {
-      ctx.strokeStyle = 'rgba(140,225,245,0.8)'; ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255,175,210,0.8)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
     }
-    const ink = active ? 'rgba(230,250,255,0.9)' : 'rgba(160,185,210,0.55)';
+    const ink = active ? 'rgba(255,245,250,0.9)' : 'rgba(200,180,215,0.55)';
     ctx.fillStyle = ink; ctx.strokeStyle = ink;
     if (b.m === 'score') { // play triangle
       ctx.beginPath();
@@ -346,12 +376,12 @@ function draw(now) {
   if (progress >= 1) { clearGrid(); clearHoldStart = null; }
   const ck = btnScale('clear', now) * (1 - 0.15 * progress); // compresses as the hold fills
   ctx.save(); ctx.translate(btn.x, btn.y); ctx.scale(ck, ck); ctx.translate(-btn.x, -btn.y);
-  ctx.fillStyle = holding ? 'rgba(120,150,180,0.30)' : 'rgba(120,150,180,0.12)';
+  ctx.fillStyle = holding ? 'rgba(190,160,215,0.30)' : 'rgba(190,160,215,0.12)';
   ctx.beginPath();
   ctx.arc(btn.x, btn.y, btn.r, 0, Math.PI * 2);
   ctx.fill();
   const arm = btn.r * 0.4;
-  ctx.strokeStyle = 'rgba(160,185,210,0.55)';
+  ctx.strokeStyle = 'rgba(200,180,215,0.55)';
   ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
   ctx.beginPath();
@@ -359,7 +389,7 @@ function draw(now) {
   ctx.moveTo(btn.x + arm, btn.y - arm); ctx.lineTo(btn.x - arm, btn.y + arm);
   ctx.stroke();
   if (holding) {
-    ctx.strokeStyle = 'rgba(140,225,245,0.9)';
+    ctx.strokeStyle = 'rgba(255,175,210,0.9)';
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(btn.x, btn.y, btn.r + 4, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
