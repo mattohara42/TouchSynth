@@ -19,6 +19,9 @@
 - [ ] Tempo control (hidden/grown-up area?)
 
 ## Later / Ideas
+- [x] Rubber UI Tier 2 — grid as soft membrane: ripples displace/scale nearby cells, springy playhead glow band with overshoot, bounce-ball squash on floor impact, squishy depress-and-boing buttons (Tier 1 — spring fn, inflate/deflate on toggle, squash on fire, finger bulge — shipped 2026-07-12; Tier 2 shipped same day)
+- [ ] Rubber UI Tier 3 — gummy material look: warm aubergine background, candy hue-by-row palette (pitch becomes visible), pre-rendered glossy cell sprites (no per-frame gradients/shadowBlur on the panel), rounder corners + idle cells as small dots, ripple rings in the cell's own color
+- [ ] If the look goes candy (Tier 3), revisit voice to match — marimba-ish
 - [x] Idle attract mode: after 2 min untouched + empty grid, ghost places/holds/dissolves preset patterns; any tap evicts it (2026-07-12)
 - [ ] Grown-up mode toggle exposing full depth (more layers, more modes, voices)
 - [ ] Instrument voice selection
@@ -36,7 +39,8 @@
 - 2026-07-12: Tone.js pinned to 14.8.49 from cdnjs (known-good, stable for a kiosk). Bump deliberately, not automatically.
 - 2026-07-12: Scale = C major pentatonic, C3–C6 (16 notes, C/D/E/G/A per octave). "Which pentatonic" wasn't specified.
 - 2026-07-12: Voice = triangle-wave PolySynth with soft envelope + limiter, no reverb. Sounded clean; add a small Tone.Reverb later if too dry on the panel (see ponytail comment in index.html).
-- 2026-07-12: Playhead visual = whole column lightened; active cell under playhead flashes white. Simplest readable sweep.
+- 2026-07-12: Playhead visual = whole column lightened; active cell under playhead flashes white. Simplest readable sweep. [SUPERSEDED same day by Rubber Tier 2: column-lightening removed in favor of a spring-eased glow band + cell bulge; fired cells still flash white briefly.]
+- 2026-07-12: Rubber Tier 2 tuning: ripple rings swell cells up to +16% and push them radially up to 10% of a cell (gaussian band, width 0.9 cell, cheap box-test early-out per cell×wave pair — worst case 96 waves × 256 cells, watch on the panel). Playhead band = spring-eased hop per 16th with ~17% overshoot; wraps by re-entering from the left edge. Bounce balls: sy = (1+0.35·speed)·(1−0.45·floorContact), volume-preserving ellipse. Buttons: one-shot 25% dip-and-spring on tap; clear also compresses 15% as the hold-ring fills.
 - 2026-07-12: Tapping a cell ON spawns an immediate ripple as placement feedback (in addition to trigger ripples). Felt right for "no wrong notes"; easy to remove.
 - 2026-07-12: Added .claude/launch.json (npx http-server on :8321) as the dev preview server — dev convenience only, not part of deploy.
 - 2026-07-12: launch.json switched to autoPort (port 8321 was taken by another session; a static server doesn't care which port).
@@ -45,4 +49,5 @@
 - 2026-07-12: Bounce mode semantics (faithful to the original): pitch = COLUMN (left low → right high), height = pulse rate (ball strikes floor every 16−row sixteenths, so top row = once/bar, bottom = every 16th). All balls phase-locked to the global step counter → guaranteed polyrhythms, no free-running physics. Grid state is shared across modes (one layer for now); a pattern sounds different per mode, which is the fun.
 - 2026-07-12: Mode switcher = icon buttons (play triangle / ball-over-floor / dot-zigzag) bottom-left, mirroring the clear button. Tap switches instantly, no confirmation.
 - 2026-07-12: Random mode = light hops between dots in TAP ORDER (a `placed` array tracks placement sequence alongside the grid), one hop per 8th note, pitch = row like Score. "Random" is the Tenori-on name; it's actually deterministic — kept the name for faithfulness.
+- 2026-07-12: Rubber Tier 1 tuning: one damped spring (1 − e^(−5t)·cos(9t), ~17% overshoot) drives everything over 550ms; inflate starts at 40% size; fire squash ±25% anisotropic; finger bulge +12% max with falloff over 2.5 cells. All derived per-frame from timestamps — no physics state, renderer-only change. Squash also applies to OFF cells poked by Bounce-mode floor hits (looks intentional, kept).
 - 2026-07-12: Idle attract triggers after 2 min untouched AND grid empty (a left-behind pattern already attracts; never destroy a kid's work). Ghost forces Score mode, places a preset dot every 0.9s, holds 30s, dissolves, next pattern ~10s later (2 patterns: sine wave, sparse arpeggio). Any tap = instant eviction + clear. Can't run before the first-ever tap (AudioContext locked) — acceptable: panel gets touched daily.
