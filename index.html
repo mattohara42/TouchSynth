@@ -23,10 +23,20 @@
 const N = 16;
 
 // ---------- State (dumb data, no logic) ----------
-// grid[col][row], row 0 = top of screen
-const grid = Array.from({ length: N }, () => Array(N).fill(false));
-// tap order of the ON cells — Random mode plays dots in placement order
-const placed = [];
+// 3 layers; you edit one, ALL of them sound. Each owns its grid, tap order,
+// mode, random-light state, and rubber-anim timestamps. grid[col][row], row 0 = top.
+const LAYERS = 3;
+const mkLayer = () => ({
+  grid: Array.from({ length: N }, () => Array(N).fill(false)),
+  placed: [], // tap order of ON cells — Random mode plays dots in placement order
+  mode: 'score',
+  randFrom: null, randTo: null, randAt: 0, // random-mode light: previous dot, current dot, hop start
+  born: Array.from({ length: N }, () => Array(N).fill(-1e9)),  // inflate on toggle-on
+  died: Array.from({ length: N }, () => Array(N).fill(-1e9)),  // jiggle on toggle-off
+  fired: Array.from({ length: N }, () => Array(N).fill(-1e9)), // squash on note fire
+});
+const layers = Array.from({ length: LAYERS }, mkLayer);
+let li = 0; // layer being edited
 
 // ---------- Audio engine (owns timing, never touches the render loop) ----------
 // C major pentatonic, C3 up to C6. Row 0 (top) maps to the highest note.
@@ -42,48 +52,45 @@ const synth = new Tone.PolySynth(Tone.Synth, {
 // ponytail: limiter only, no reverb/FX chain — add a small Tone.Reverb if it sounds too dry on the panel
 synth.chain(new Tone.Limiter(-3), Tone.Destination);
 
-let mode = 'score';  // which "what fires when" strategy is live
 let playhead = -1;   // render-side copies, updated in sync with audio via Tone.Draw
 let drawStep = -1, drawStepAt = 0;
-let randFrom = null, randTo = null, randAt = 0; // random-mode light: previous dot, current dot, hop start
 let audioStep = -1;  // audio-side step counter
 const STEP_MS = 60000 / 110 / 4; // one 16th at the fixed 110 BPM
 
 const MODES = {
   // Score: playhead sweeps left→right, active cells in the current column fire.
   // Pitch = row (bottom low, top high).
-  score(step, time) {
+  score(L, step, time) {
     const col = step % N;
     for (let row = 0; row < N; row++) {
-      if (grid[col][row]) {
+      if (L.grid[col][row]) {
         synth.triggerAttackRelease(SCALE[N - 1 - row], '16n', time);
-        Tone.Draw.schedule(() => { spawnRipple(col, row); poke(col, row); }, time);
+        Tone.Draw.schedule(() => { spawnRipple(col, row); poke(L, col, row); }, time);
       }
     }
-    Tone.Draw.schedule(() => { playhead = col; }, time);
   },
   // Bounce: each active cell drops a ball that strikes the floor every (16 - row)
   // sixteenths — higher placement = slower pulse. Pitch = column (left low, right high).
-  bounce(step, time) {
+  bounce(L, step, time) {
     for (let col = 0; col < N; col++) {
       for (let row = 0; row < N; row++) {
-        if (grid[col][row] && step % (N - row) === 0) {
+        if (L.grid[col][row] && step % (N - row) === 0) {
           synth.triggerAttackRelease(SCALE[col], '16n', time);
-          Tone.Draw.schedule(() => { spawnRipple(col, N - 1, col % 5); poke(col, N - 1); }, time);
+          Tone.Draw.schedule(() => { spawnRipple(col, N - 1, col % 5); poke(L, col, N - 1); }, time);
         }
       }
     }
   },
   // Random: the light hops dot-to-dot in placement order, one hop per 8th note.
   // Pitch = row, same as Score.
-  random(step, time) {
-    if (step % 2 || placed.length === 0) return;
-    const idx = (step / 2) % placed.length;
-    const { col, row } = placed[idx];
+  random(L, step, time) {
+    if (step % 2 || L.placed.length === 0) return;
+    const idx = (step / 2) % L.placed.length;
+    const { col, row } = L.placed[idx];
     synth.triggerAttackRelease(SCALE[N - 1 - row], '8n', time);
     Tone.Draw.schedule(() => {
-      randFrom = randTo; randTo = { col, row }; randAt = performance.now();
-      spawnRipple(col, row); poke(col, row);
+      L.randFrom = L.randTo; L.randTo = { col, row }; L.randAt = performance.now();
+      spawnRipple(col, row); poke(L, col, row);
     }, time);
   },
 };
@@ -91,8 +98,8 @@ const MODES = {
 Tone.Transport.bpm.value = 110;
 Tone.Transport.scheduleRepeat((time) => {
   audioStep++;
-  MODES[mode](audioStep, time);
-  Tone.Draw.schedule(() => { drawStep = audioStep; drawStepAt = performance.now(); }, time);
+  for (const L of layers) MODES[L.mode](L, audioStep, time);
+  Tone.Draw.schedule(() => { drawStep = audioStep; drawStepAt = performance.now(); playhead = audioStep % N; }, time);
 }, '16n');
 
 // ---------- Renderer (reads state + ripple queue, decides nothing) ----------
@@ -149,30 +156,32 @@ function clearButton() {
   const r = bar * 0.34;
   return { x: innerWidth - r - 20, y: innerHeight - bar / 2, r };
 }
-// Mode switcher: two small buttons, bottom-left of the control strip
+// Mode switcher: three small buttons, bottom-left of the control strip (sets the ACTIVE layer's mode)
 function modeButtons() {
   const r = bar * 0.34;
   return ['score', 'bounce', 'random'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y: innerHeight - bar / 2, r }));
 }
+// Layer switcher: dice-dot buttons, bottom-center — you edit one layer, all of them sound
+function layerButtons() {
+  const r = bar * 0.34;
+  return layers.map((_, i) => ({ i, x: innerWidth / 2 + (i - 1) * (r * 2 + 12), y: innerHeight - bar / 2, r }));
+}
 
-function clearGrid() {
+function clearGrid(L = layers[li]) { // ponytail: clears one layer; wipe-all = hold ✕ on each layer
   for (let col = 0; col < N; col++) {
     for (let row = 0; row < N; row++) {
-      if (grid[col][row]) { grid[col][row] = false; spawnRipple(col, row); died[col][row] = performance.now(); }
+      if (L.grid[col][row]) { L.grid[col][row] = false; spawnRipple(col, row); L.died[col][row] = performance.now(); }
     }
   }
-  placed.length = 0;
-  randFrom = randTo = null;
+  L.placed.length = 0;
+  L.randFrom = L.randTo = null;
 }
 
 // Rubber feel: nothing snaps — cells inflate, squash, and wobble via one damped spring.
-// All derived from per-cell timestamps each frame; no physics state.
+// All derived from per-cell timestamps (kept per layer) each frame; no physics state.
 const ANIM_MS = 550;
 const spring = (t) => 1 - Math.exp(-5 * t) * Math.cos(9 * t); // overshoots 1, wobbles back
-const born = Array.from({ length: N }, () => Array(N).fill(-1e9));  // inflate on toggle-on
-const died = Array.from({ length: N }, () => Array(N).fill(-1e9));  // jiggle on toggle-off
-const fired = Array.from({ length: N }, () => Array(N).fill(-1e9)); // squash on note fire
-const poke = (col, row) => { fired[col][row] = performance.now(); };
+const poke = (L, col, row) => { L.fired[col][row] = performance.now(); };
 let ptr = null; // finger position while touching — nearby cells bulge toward it
 let btnPop = null; // { id, at } — last-tapped button dips and springs back
 function btnScale(id, now) {
@@ -192,6 +201,7 @@ function spawnRipple(col, row, ci = (N - 1 - row) % 5) { // ci: pitch-class colo
 }
 
 function draw(now) {
+  const A = layers[li]; // the layer being edited — drawn full-strength; others ghost
   ctx.fillStyle = '#1a1024';
   ctx.fillRect(0, 0, innerWidth, innerHeight);
 
@@ -211,7 +221,7 @@ function draw(now) {
 
   // Score playhead: spring-eased glow band that lands on each column with a little overshoot
   let bandX = null;
-  if (mode === 'score' && playhead >= 0) {
+  if (A.mode === 'score' && playhead >= 0) {
     const from = ox + (playhead - 1) * cell + cell / 2; // col 0 re-enters from the left edge
     const to = ox + playhead * cell + cell / 2;
     bandX = from + (to - from) * spring(Math.min(1, (now - drawStepAt) / STEP_MS));
@@ -225,11 +235,11 @@ function draw(now) {
       const ccx = x + s / 2, ccy = y + s / 2;
       // rubber scale: inflate (born) / jiggle (died) / anisotropic squash (fired) / finger bulge
       let sx = 1, sy = 1, mx = 0, my = 0;
-      const tb = (now - born[col][row]) / ANIM_MS;
-      if (grid[col][row] && tb < 1) { const k = 0.4 + 0.6 * spring(tb); sx *= k; sy *= k; }
-      const td = (now - died[col][row]) / ANIM_MS;
-      if (!grid[col][row] && td < 1) { const k = 1 - 0.2 * Math.exp(-5 * td) * Math.sin(9 * td); sx *= k; sy *= k; }
-      const tf = (now - fired[col][row]) / ANIM_MS;
+      const tb = (now - A.born[col][row]) / ANIM_MS;
+      if (A.grid[col][row] && tb < 1) { const k = 0.4 + 0.6 * spring(tb); sx *= k; sy *= k; }
+      const td = (now - A.died[col][row]) / ANIM_MS;
+      if (!A.grid[col][row] && td < 1) { const k = 1 - 0.2 * Math.exp(-5 * td) * Math.sin(9 * td); sx *= k; sy *= k; }
+      const tf = (now - A.fired[col][row]) / ANIM_MS;
       if (tf < 1) { const q = 0.25 * Math.exp(-5 * tf) * Math.cos(9 * tf); sx *= 1 + q; sy *= 1 - q; }
       if (ptr) {
         const b = Math.max(0, 1 - Math.hypot(ptr.x - ccx, ptr.y - ccy) / (cell * 2.5));
@@ -254,7 +264,7 @@ function draw(now) {
         const k = 1 + 0.10 * Math.exp(-bd * bd); sx *= k; sy *= k;
       }
       const w = s * sx, h = s * sy;
-      if (grid[col][row]) { // glossy candy blob; gloss stretches with the squash
+      if (A.grid[col][row]) { // glossy candy blob; gloss stretches with the squash
         ctx.drawImage(sprites[tf < 0.22 ? 5 : (N - 1 - row) % 5], x + (s - w) / 2 + mx, y + (s - h) / 2 + my, w, h);
       } else { // idle cells are small soft dots — the inflate-on-toggle has somewhere to go
         const dw = w * 0.5, dh = h * 0.5;
@@ -265,6 +275,17 @@ function draw(now) {
       }
     }
   }
+
+  // Other layers, ghosted: small dim candy dots so you can see (and find) what else is sounding
+  ctx.globalAlpha = 0.32;
+  for (const L of layers) {
+    if (L === A) continue;
+    const gs = (cell - gap) * 0.45;
+    for (const p of L.placed) {
+      ctx.drawImage(sprites[(N - 1 - p.row) % 5], ox + p.col * cell + (cell - gs) / 2, oy + p.row * cell + (cell - gs) / 2, gs, gs);
+    }
+  }
+  ctx.globalAlpha = 1;
 
   // Playhead glow band — soft wash over the column, position spring-eased above
   if (bandX !== null) {
@@ -278,12 +299,12 @@ function draw(now) {
   }
 
   // Bounce balls — position derived from the audio step clock, renderer decides nothing
-  if (mode === 'bounce' && drawStep >= 0) {
+  if (A.mode === 'bounce' && drawStep >= 0) {
     const frac = Math.min(1, (now - drawStepAt) / STEP_MS);
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     for (let col = 0; col < N; col++) {
       for (let row = 0; row < N - 1; row++) { // bottom row sits on the floor, no ball to draw
-        if (!grid[col][row]) continue;
+        if (!A.grid[col][row]) continue;
         const interval = N - row;
         const p = ((drawStep % interval) + frac) / interval;
         const h = Math.sin(p * Math.PI); // 0 at floor, 1 at the placed cell; slow at the apex like a real bounce
@@ -300,11 +321,11 @@ function draw(now) {
   }
 
   // Random-mode light: glowing dot gliding from the previous dot to the current one, with a fading tail
-  if (mode === 'random' && randTo) {
-    const frac = Math.min(1, (now - randAt) / (STEP_MS * 2));
-    const from = randFrom || randTo;
+  if (A.mode === 'random' && A.randTo) {
+    const frac = Math.min(1, (now - A.randAt) / (STEP_MS * 2));
+    const from = A.randFrom || A.randTo;
     const fx = ox + from.col * cell + cell / 2, fy = oy + from.row * cell + cell / 2;
-    const tx = ox + randTo.col * cell + cell / 2, ty = oy + randTo.row * cell + cell / 2;
+    const tx = ox + A.randTo.col * cell + cell / 2, ty = oy + A.randTo.row * cell + cell / 2;
     const px = fx + (tx - fx) * frac, py = fy + (ty - fy) * frac;
     if (px !== fx || py !== fy) {
       const grad = ctx.createLinearGradient(fx, fy, px, py);
@@ -337,7 +358,7 @@ function draw(now) {
   for (const b of modeButtons()) {
     const bk = btnScale(b.m, now);
     ctx.save(); ctx.translate(b.x, b.y); ctx.scale(bk, bk); ctx.translate(-b.x, -b.y);
-    const active = mode === b.m;
+    const active = A.mode === b.m;
     ctx.fillStyle = active ? 'rgba(255,140,190,0.22)' : 'rgba(190,160,215,0.12)';
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
     if (active) {
@@ -366,6 +387,25 @@ function draw(now) {
       for (const [dx, dy] of [[-0.4, 0.3], [0, -0.35], [0.4, 0.2]]) {
         ctx.beginPath(); ctx.arc(b.x + dx * b.r, b.y + dy * b.r, b.r * 0.13, 0, Math.PI * 2); ctx.fill();
       }
+    }
+    ctx.restore();
+  }
+
+  // Layer buttons — 1/2/3 dice dots; ring marks the layer you're editing
+  for (const b of layerButtons()) {
+    const bk = btnScale('layer' + b.i, now);
+    ctx.save(); ctx.translate(b.x, b.y); ctx.scale(bk, bk); ctx.translate(-b.x, -b.y);
+    const active = li === b.i;
+    ctx.fillStyle = active ? 'rgba(255,140,190,0.22)' : 'rgba(190,160,215,0.12)';
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+    if (active) {
+      ctx.strokeStyle = 'rgba(255,175,210,0.8)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.fillStyle = active ? 'rgba(255,245,250,0.9)' : 'rgba(200,180,215,0.55)';
+    for (let d = 0; d <= b.i; d++) {
+      const dx = (d - b.i / 2) * b.r * 0.55;
+      ctx.beginPath(); ctx.arc(b.x + dx, b.y, b.r * 0.14, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
   }
@@ -418,14 +458,15 @@ const ATTRACT_PATTERNS = [
 ];
 
 function startAttract() {
-  mode = 'score';
+  const L = layers[li]; // ghost plays on whatever layer is up — all layers are empty anyway
+  L.mode = 'score';
   attract = {
     phase: 'placing', i: 0, holdUntil: 0,
     dots: ATTRACT_PATTERNS[attractIdx++ % ATTRACT_PATTERNS.length](),
     timer: setInterval(() => {
       if (attract.phase === 'placing') {
         const [c, r] = attract.dots[attract.i++];
-        grid[c][r] = true; placed.push({ col: c, row: r }); spawnRipple(c, r); born[c][r] = performance.now();
+        L.grid[c][r] = true; L.placed.push({ col: c, row: r }); spawnRipple(c, r); L.born[c][r] = performance.now();
         if (attract.i >= attract.dots.length) {
           attract.phase = 'holding';
           attract.holdUntil = performance.now() + ATTRACT_HOLD_MS;
@@ -434,9 +475,9 @@ function startAttract() {
         if (performance.now() >= attract.holdUntil) attract.phase = 'removing';
       } else {
         const [c, r] = attract.dots.pop();
-        grid[c][r] = false;
-        const j = placed.findIndex((p) => p.col === c && p.row === r);
-        if (j >= 0) placed.splice(j, 1);
+        L.grid[c][r] = false;
+        const j = L.placed.findIndex((p) => p.col === c && p.row === r);
+        if (j >= 0) L.placed.splice(j, 1);
         if (!attract.dots.length) {
           stopAttract();
           lastTouch = performance.now() - IDLE_MS + 10000; // next pattern in ~10s if still untouched
@@ -453,7 +494,7 @@ function stopAttract() {
 }
 
 setInterval(() => {
-  if (started && !attract && placed.length === 0 && performance.now() - lastTouch >= IDLE_MS) startAttract();
+  if (started && !attract && layers.every((L) => L.placed.length === 0) && performance.now() - lastTouch >= IDLE_MS) startAttract();
 }, 1000);
 
 // ---------- Input ----------
@@ -477,23 +518,36 @@ canvas.addEventListener('pointerdown', async (e) => {
   }
   for (const b of modeButtons()) {
     if (Math.hypot(e.clientX - b.x, e.clientY - b.y) <= b.r + 6) {
-      mode = b.m; randFrom = randTo = null;
+      const L = layers[li];
+      L.mode = b.m; L.randFrom = L.randTo = null;
       btnPop = { id: b.m, at: performance.now() };
+      return;
+    }
+  }
+  for (const b of layerButtons()) {
+    if (Math.hypot(e.clientX - b.x, e.clientY - b.y) <= b.r + 6) {
+      if (li !== b.i) {
+        li = b.i;
+        const L = layers[li], t = performance.now();
+        for (const p of L.placed) L.born[p.col][p.row] = t; // incoming layer's cells inflate in
+      }
+      btnPop = { id: 'layer' + b.i, at: performance.now() };
       return;
     }
   }
   const col = Math.floor((e.clientX - ox) / cell);
   const row = Math.floor((e.clientY - oy) / cell);
   if (col >= 0 && col < N && row >= 0 && row < N) {
-    grid[col][row] = !grid[col][row];
-    if (grid[col][row]) {
-      placed.push({ col, row });
+    const L = layers[li];
+    L.grid[col][row] = !L.grid[col][row];
+    if (L.grid[col][row]) {
+      L.placed.push({ col, row });
       spawnRipple(col, row); // immediate feedback on placement
-      born[col][row] = performance.now();
+      L.born[col][row] = performance.now();
     } else {
-      const i = placed.findIndex((p) => p.col === col && p.row === row);
-      if (i >= 0) placed.splice(i, 1);
-      died[col][row] = performance.now();
+      const i = L.placed.findIndex((p) => p.col === col && p.row === row);
+      if (i >= 0) L.placed.splice(i, 1);
+      L.died[col][row] = performance.now();
     }
   }
 });

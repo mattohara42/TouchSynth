@@ -15,7 +15,7 @@
 ## Next (M2 candidates — decide after M1 ships)
 - [x] Bounce mode + mode seam: engine strategies in MODES{}, switcher = 2 buttons bottom-left (2026-07-12)
 - [x] Random mode: light hops dot-to-dot in placement order, 1 hop per 8th note (2026-07-12)
-- [ ] 2–3 layers with simple layer switcher (big buttons, not the original's 16)
+- [x] 2–3 layers with simple layer switcher (big buttons, not the original's 16) — 3 layers, all sound at once, dice-dot switcher bottom-center (2026-07-12)
 - [ ] Tempo control (hidden/grown-up area?)
 
 ## Later / Ideas
@@ -32,10 +32,14 @@
 - [ ] Volume strategy for kitchen/wall placement (time-of-day aware? panel hardware volume?)
 
 ## Smells / Watch items
-- (none yet — log anything discovered mid-build here rather than fixing inline)
+- Loudness with 3 dense layers: all layers share one -8 dB synth into the -3 dB limiter; heavy patterns on all three could pump the limiter. Listen on the panel; if it squashes, drop synth volume ~3 dB.
 
 ## Assumptions log
 - (Claude Code: when proceeding unattended on an ambiguous decision, record it here with date + rationale)
+- 2026-07-12: Layers (faithful reading, per Claude's stated default that Matt greenlit): 3 layers, ALL audible simultaneously, each with its OWN mode; you edit one at a time. Mode buttons show/set the active layer's mode. Switcher = 3 dice-dot circle buttons bottom-center (1/2/3 dots — no reading required). Switching layers inflates the incoming layer's cells so the swap is legible.
+- 2026-07-12: Non-active layers render as half-size dim candy dots (alpha 0.32) so a kid can see something else is singing and find it; their ripples and cell-squash still appear (the sound leaves a visual trace), but their bounce balls / random lights don't render — only the active layer gets full mode visuals, like the original.
+- 2026-07-12: Hold-✕ clears the ACTIVE layer only (never nukes a sibling layer's pattern); wipe-all = clear each layer in turn. Idle attract now waits for ALL layers empty and the ghost plays on whichever layer is active.
+- 2026-07-12: State seam refactor: grid/placed/mode/rand-light + rubber timestamps (born/died/fired) all moved into per-layer objects; playhead/drawStep stay global (all layers share the transport clock, playhead = step % 16 always).
 - 2026-07-12: Tone.js pinned to 14.8.49 from cdnjs (known-good, stable for a kiosk). Bump deliberately, not automatically.
 - 2026-07-12: Scale = C major pentatonic, C3–C6 (16 notes, C/D/E/G/A per octave). "Which pentatonic" wasn't specified.
 - 2026-07-12: Voice = triangle-wave PolySynth with soft envelope + limiter, no reverb. Sounded clean; add a small Tone.Reverb later if too dry on the panel (see ponytail comment in index.html).
