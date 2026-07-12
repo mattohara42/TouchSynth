@@ -14,7 +14,7 @@
 
 ## Next (M2 candidates — decide after M1 ships)
 - [x] Bounce mode + mode seam: engine strategies in MODES{}, switcher = 2 buttons bottom-left (2026-07-12)
-- [ ] Random mode (light-trail traveling melody)
+- [x] Random mode: light hops dot-to-dot in placement order, 1 hop per 8th note (2026-07-12)
 - [ ] 2–3 layers with simple layer switcher (big buttons, not the original's 16)
 - [ ] Tempo control (hidden/grown-up area?)
 
@@ -43,4 +43,5 @@
 - 2026-07-12: Clear-grid interaction = hold-to-clear ✕ button, bottom-right, ~1s with progress ring, ripple burst on wipe. Rationale: instant tap risks accidental wipes by kids; hold-with-feedback is still zero-instruction.
 - 2026-07-12: All controls live in a dedicated strip below the grid (bar = max(64px, 9% of height)); the grid shrinks to fit above it. Controls never overlap the grid at any aspect ratio (was Matt's call).
 - 2026-07-12: Bounce mode semantics (faithful to the original): pitch = COLUMN (left low → right high), height = pulse rate (ball strikes floor every 16−row sixteenths, so top row = once/bar, bottom = every 16th). All balls phase-locked to the global step counter → guaranteed polyrhythms, no free-running physics. Grid state is shared across modes (one layer for now); a pattern sounds different per mode, which is the fun.
-- 2026-07-12: Mode switcher = two icon buttons (play triangle / ball-over-floor) bottom-left, mirroring the clear button. Tap switches instantly, no confirmation.
+- 2026-07-12: Mode switcher = icon buttons (play triangle / ball-over-floor / dot-zigzag) bottom-left, mirroring the clear button. Tap switches instantly, no confirmation.
+- 2026-07-12: Random mode = light hops between dots in TAP ORDER (a `placed` array tracks placement sequence alongside the grid), one hop per 8th note, pitch = row like Score. "Random" is the Tenori-on name; it's actually deterministic — kept the name for faithfulness.

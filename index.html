@@ -25,6 +25,8 @@ const N = 16;
 // ---------- State (dumb data, no logic) ----------
 // grid[col][row], row 0 = top of screen
 const grid = Array.from({ length: N }, () => Array(N).fill(false));
+// tap order of the ON cells — Random mode plays dots in placement order
+const placed = [];
 
 // ---------- Audio engine (owns timing, never touches the render loop) ----------
 // C major pentatonic, C3 up to C6. Row 0 (top) maps to the highest note.
@@ -42,6 +44,7 @@ synth.chain(new Tone.Limiter(-3), Tone.Destination);
 let mode = 'score';  // which "what fires when" strategy is live
 let playhead = -1;   // render-side copies, updated in sync with audio via Tone.Draw
 let drawStep = -1, drawStepAt = 0;
+let randFrom = null, randTo = null, randAt = 0; // random-mode light: previous dot, current dot, hop start
 let audioStep = -1;  // audio-side step counter
 const STEP_MS = 60000 / 110 / 4; // one 16th at the fixed 110 BPM
 
@@ -69,6 +72,18 @@ const MODES = {
         }
       }
     }
+  },
+  // Random: the light hops dot-to-dot in placement order, one hop per 8th note.
+  // Pitch = row, same as Score.
+  random(step, time) {
+    if (step % 2 || placed.length === 0) return;
+    const idx = (step / 2) % placed.length;
+    const { col, row } = placed[idx];
+    synth.triggerAttackRelease(SCALE[N - 1 - row], '8n', time);
+    Tone.Draw.schedule(() => {
+      randFrom = randTo; randTo = { col, row }; randAt = performance.now();
+      spawnRipple(col, row);
+    }, time);
   },
 };
 
@@ -111,7 +126,7 @@ function clearButton() {
 // Mode switcher: two small buttons, bottom-left of the control strip
 function modeButtons() {
   const r = bar * 0.34;
-  return ['score', 'bounce'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y: innerHeight - bar / 2, r }));
+  return ['score', 'bounce', 'random'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y: innerHeight - bar / 2, r }));
 }
 
 function clearGrid() {
@@ -120,6 +135,8 @@ function clearGrid() {
       if (grid[col][row]) { grid[col][row] = false; spawnRipple(col, row); }
     }
   }
+  placed.length = 0;
+  randFrom = randTo = null;
 }
 
 // Ripples: fixed-size pool, oldest overwritten — no unbounded arrays for all-day sessions
@@ -170,6 +187,26 @@ function draw(now) {
     }
   }
 
+  // Random-mode light: glowing dot gliding from the previous dot to the current one, with a fading tail
+  if (mode === 'random' && randTo) {
+    const frac = Math.min(1, (now - randAt) / (STEP_MS * 2));
+    const from = randFrom || randTo;
+    const fx = ox + from.col * cell + cell / 2, fy = oy + from.row * cell + cell / 2;
+    const tx = ox + randTo.col * cell + cell / 2, ty = oy + randTo.row * cell + cell / 2;
+    const px = fx + (tx - fx) * frac, py = fy + (ty - fy) * frac;
+    if (px !== fx || py !== fy) {
+      const grad = ctx.createLinearGradient(fx, fy, px, py);
+      grad.addColorStop(0, 'rgba(140,225,245,0)');
+      grad.addColorStop(1, 'rgba(140,225,245,0.6)');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = Math.max(2, cell * 0.08);
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(px, py); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath(); ctx.arc(px, py, cell * 0.18, 0, Math.PI * 2); ctx.fill();
+  }
+
   // Ripples — the signature visual: expanding ring + soft glow, eased fade
   for (let i = ripples.length - 1; i >= 0; i--) {
     const rp = ripples[i];
@@ -208,10 +245,20 @@ function draw(now) {
       ctx.lineTo(b.x + b.r * 0.42, b.y);
       ctx.lineTo(b.x - b.r * 0.28, b.y + b.r * 0.38);
       ctx.closePath(); ctx.fill();
-    } else { // ball over a floor line
+    } else if (b.m === 'bounce') { // ball over a floor line
       ctx.beginPath(); ctx.arc(b.x, b.y - b.r * 0.15, b.r * 0.2, 0, Math.PI * 2); ctx.fill();
       ctx.lineWidth = 2.5; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(b.x - b.r * 0.4, b.y + b.r * 0.42); ctx.lineTo(b.x + b.r * 0.4, b.y + b.r * 0.42); ctx.stroke();
+    } else { // random: dot-to-dot zigzag
+      ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(b.x - b.r * 0.4, b.y + b.r * 0.3);
+      ctx.lineTo(b.x, b.y - b.r * 0.35);
+      ctx.lineTo(b.x + b.r * 0.4, b.y + b.r * 0.2);
+      ctx.stroke();
+      for (const [dx, dy] of [[-0.4, 0.3], [0, -0.35], [0.4, 0.2]]) {
+        ctx.beginPath(); ctx.arc(b.x + dx * b.r, b.y + dy * b.r, b.r * 0.13, 0, Math.PI * 2); ctx.fill();
+      }
     }
   }
 
@@ -260,13 +307,19 @@ canvas.addEventListener('pointerdown', async (e) => {
     return;
   }
   for (const b of modeButtons()) {
-    if (Math.hypot(e.clientX - b.x, e.clientY - b.y) <= b.r + 6) { mode = b.m; return; }
+    if (Math.hypot(e.clientX - b.x, e.clientY - b.y) <= b.r + 6) { mode = b.m; randFrom = randTo = null; return; }
   }
   const col = Math.floor((e.clientX - ox) / cell);
   const row = Math.floor((e.clientY - oy) / cell);
   if (col >= 0 && col < N && row >= 0 && row < N) {
     grid[col][row] = !grid[col][row];
-    if (grid[col][row]) spawnRipple(col, row); // immediate feedback on placement
+    if (grid[col][row]) {
+      placed.push({ col, row });
+      spawnRipple(col, row); // immediate feedback on placement
+    } else {
+      const i = placed.findIndex((p) => p.col === col && p.row === row);
+      if (i >= 0) placed.splice(i, 1);
+    }
   }
 });
 addEventListener('pointerup', () => { clearHoldStart = null; });
