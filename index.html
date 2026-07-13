@@ -75,6 +75,12 @@
       <option value="kaleido">kaleidoscope</option>
     </select>
   </label>
+  <label><span>garden — pattern slowly evolves</span>
+    <select id="gardenSel">
+      <option value="off">off</option>
+      <option value="on">on — a dot grows or fades every 8 bars</option>
+    </select>
+  </label>
   <button id="clearAll">clear all layers</button>
   <div id="teach">
     <b>who makes music like this?</b><br>
@@ -203,8 +209,23 @@ Tone.Transport.bpm.value = 110;
 Tone.Transport.scheduleRepeat((time) => {
   audioStep++;
   for (const L of layers) MODES[L.mode](L, audioStep, time);
+  if (garden && !attract && audioStep % 128 === 0) tendGarden(); // every 8 bars the garden grows
   Tone.Draw.schedule(() => { drawStep = audioStep; drawStepAt = performance.now(); }, time);
 }, '16n');
+
+// The Eno switch: a left-behind pattern slowly mutates all afternoon — one dot
+// grown or pruned on the active layer every 8 bars. Pentatonic = no wrong growth.
+function tendGarden() {
+  const L = layers[li];
+  if (!L.placed.length) return; // an empty grid stays empty — attract owns that case
+  if (L.placed.length < 24 && (L.placed.length <= 3 || Math.random() < 0.5)) {
+    setCell(L, Math.floor(Math.random() * L.len), Math.floor(Math.random() * N), true);
+  } else {
+    const p = L.placed[Math.floor(Math.random() * L.placed.length)];
+    setCell(L, p.col, p.row, false);
+  }
+  save(); // the evolved pattern survives a reboot
+}
 
 // ---------- Renderer (reads state + ripple queue, decides nothing) ----------
 const canvas = document.getElementById('c');
@@ -770,6 +791,9 @@ scaleSel.addEventListener('change', () => { setScale(scaleSel.value); save(); })
 let mirror = 'off';
 const mirrorSel = document.getElementById('mirrorSel');
 mirrorSel.addEventListener('change', () => { mirror = mirrorSel.value; save(); });
+let garden = false;
+const gardenSel = document.getElementById('gardenSel');
+gardenSel.addEventListener('change', () => { garden = gardenSel.value === 'on'; save(); });
 document.getElementById('clearAll').addEventListener('click', () => layers.forEach((L) => clearGrid(L)));
 document.getElementById('panelClose').addEventListener('click', () => { panel.style.display = 'none'; });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -778,7 +802,7 @@ document.addEventListener('contextmenu', (e) => e.preventDefault());
 const SAVE_KEY = 'gridSings.v1';
 function save() {
   localStorage.setItem(SAVE_KEY, JSON.stringify({
-    bpm: Tone.Transport.bpm.value, swing: Tone.Transport.swing, scale: scaleName, mirror, li,
+    bpm: Tone.Transport.bpm.value, swing: Tone.Transport.swing, scale: scaleName, mirror, garden, li,
     layers: layers.map((L) => ({ placed: L.placed, mode: L.mode, len: L.len })),
   }));
 }
@@ -810,6 +834,7 @@ function save() {
   swingSlider.value = sw * 100; document.getElementById('swingVal').textContent = Math.round(sw * 100);
   if (SCALES[d.scale]) { setScale(d.scale); scaleSel.value = d.scale; }
   if (['off', 'lr', 'kaleido'].includes(d.mirror)) { mirror = d.mirror; mirrorSel.value = d.mirror; }
+  if (d.garden === true) { garden = true; gardenSel.value = 'on'; }
 })();
 
 // Self-check: scale mapping sanity (visible in console only, costs nothing)
