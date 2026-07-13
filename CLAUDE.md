@@ -11,15 +11,14 @@ A Tenori-on-inspired grid music instrument. **Faithful engine, kid-friendly skin
 - Not a settings-rich app. Every control added must justify itself against the "walk up and play" test.
 - Not part of Family Hub. Separate repo, separate Netlify site, same deployment pipeline.
 
-## Current milestone: M1 — "The Grid Sings"
-- 16×16 touch grid, fullscreen, dark background
-- Score mode only: playhead sweeps left→right, loops continuously
-- Pentatonic scale, mapped bottom (low) to top (high), single voice
-- Light ripple animation on note trigger — the signature visual, worth polishing
-- Fixed tempo (~110 BPM), no visible controls
-- Tap toggles a cell. That is the entire UI.
+## Status — M1–M3 shipped
+The M1 grid ("Score mode, one voice, tap-to-toggle, the signature ripple") shipped, and the instrument has since grown through M2 and M3. Live at touchsynth.netlify.app. See **README.md** for the full feature set and **BACKLOG.md** for the blow-by-blow of what shipped, what's deferred, and what's still open (plus the dated assumptions log).
 
-Deferred (see BACKLOG.md): layers, Bounce/Random modes, instrument selection, tempo control, save/load, settings, idle attract mode.
+Shipped in brief: all six Tenori-on-style modes (Score, Bounce, Random, Draw, Push, Solo); 3 simultaneous layers, each with its own voice, mode, and loop length (unequal lengths = Reich phasing); a hidden grown-up panel (tempo, swing, scale, mirror painting, garden/Eno evolve, per-layer loops, teaching card + QR); night palette; idle attract mode; localStorage persistence; and the gummy rubber-UI look with pitch-class candy colours.
+
+Still open (see BACKLOG.md): a grown-up depth toggle, instrument voice selection, per-kid pattern slots, a real name, and a wall-volume strategy.
+
+The M1 rules still hold, though, and everything above earns its keep against them: **faithful engine, kid-friendly skin, wall-panel target.** No new control ships unless it survives the "walk up and play" test.
 
 ## Tech decisions (agreed)
 - Single `index.html` for M1. Split into modules only when it earns it.
