@@ -110,6 +110,7 @@ const mkLayer = () => ({
   mode: 'score',
   len: N, // Score-mode loop length; unequal lengths across layers = Reich-style phasing
   randFrom: null, randTo: null, randAt: 0, // random-mode light: previous dot, current dot, hop start
+  held: new Map(), // Push mode: pointerId → {col,row,note} for cells a finger is holding down (transient, never saved)
   born: Array.from({ length: N }, () => Array(N).fill(-1e9)),  // inflate on toggle-on
   died: Array.from({ length: N }, () => Array(N).fill(-1e9)),  // jiggle on toggle-off
   fired: Array.from({ length: N }, () => Array(N).fill(-1e9)), // squash on note fire
@@ -143,11 +144,13 @@ const voices = [
   }),
   new Tone.PolySynth(Tone.Synth, { // soft pluck: triangle, short decay
     volume: -9,
+    detune: 1200, // up an octave (Matt's mix call after hearing all three) — shifts pitch only, colors follow scale degree
     oscillator: { type: 'triangle' },
     envelope: { attack: 0.001, decay: 0.35, sustain: 0, release: 0.4 },
   }),
   new Tone.PolySynth(Tone.FMSynth, { // glass bells: FM shimmer, long tail
     volume: -14,
+    detune: -1200, // down an octave (Matt's mix call after hearing all three)
     harmonicity: 8, modulationIndex: 2,
     envelope: { attack: 0.001, decay: 1.6, sustain: 0, release: 1.6 },
     modulationEnvelope: { attack: 0.002, decay: 0.3, sustain: 0, release: 0.3 },
@@ -155,6 +158,16 @@ const voices = [
 ];
 voices.forEach((v) => v.connect(limiter));
 layers.forEach((L, i) => { L.voice = voices[i]; });
+
+// Push mode needs a voice that actually SUSTAINS while a finger holds — the three layer
+// voices are plucks (sustain 0) and would just decay. One shared soft pad, warm attack/release
+// so held cells drone and stack into chords. (volume by ear — see Smells; -12 so a fistful of
+// held notes doesn't pump the limiter.)
+const padVoice = new Tone.PolySynth(Tone.Synth, {
+  volume: -12,
+  oscillator: { type: 'triangle' },
+  envelope: { attack: 0.15, decay: 0.2, sustain: 0.7, release: 0.6 },
+}).connect(limiter);
 
 let drawStep = -1, drawStepAt = 0; // render-side copies, updated in sync with audio via Tone.Draw
 let audioStep = -1;  // audio-side step counter
@@ -203,7 +216,49 @@ const MODES = {
     for (const p of [...L.placed]) if (p.exp && cutoff > p.exp) setCell(L, p.col, p.row, false);
     MODES.score(L, step, time);
   },
+  // Push / Solo are LIVE modes: they make no sound on the transport clock — the finger IS the
+  // sequencer. Present here as no-ops so the step loop and the save-load mode validation stay
+  // uniform; the actual triggering lives in the input handlers (pushDown/pushUp, playSolo).
+  push() {},
+  solo() {},
 };
+
+// ---------- Live-play modes (touch-driven, not step-driven) ----------
+// Pitch = row, same mapping as Score, but column is ignored so a whole row is one fat target.
+// Push: hold a cell → the shared pad voice sustains it; drag = the note follows the finger;
+// multiple fingers = a held chord. Solo: each touched cell plucks the layer's own voice once.
+function pushDown(id, L, col, row) {
+  const note = SCALE[N - 1 - row];
+  padVoice.triggerAttack(note);
+  L.held.set(id, { col, row, note });
+  spawnRipple(col, row); poke(L, col, row);
+  L.born[col][row] = performance.now(); // held cell inflates in
+}
+function pushMove(id, L, col, row) {
+  const h = L.held.get(id);
+  if (!h || (h.col === col && h.row === row)) return; // still on the same cell — nothing to do
+  padVoice.triggerRelease(h.note);
+  L.died[h.col][h.row] = performance.now(); // old cell jiggles out as the finger leaves it
+  const note = SCALE[N - 1 - row];
+  padVoice.triggerAttack(note);
+  spawnRipple(col, row); poke(L, col, row);
+  L.born[col][row] = performance.now();
+  h.col = col; h.row = row; h.note = note;
+}
+function pushUp(id) { // scan all layers so a note survives a layer switch mid-hold
+  for (const L of layers) {
+    const h = L.held.get(id);
+    if (h) { padVoice.triggerRelease(h.note); L.died[h.col][h.row] = performance.now(); L.held.delete(id); }
+  }
+}
+function releaseAllHeld(L) { // e.g. when this layer's mode changes out from under a held finger
+  for (const h of L.held.values()) { padVoice.triggerRelease(h.note); L.died[h.col][h.row] = performance.now(); }
+  L.held.clear();
+}
+function playSolo(L, col, row) {
+  L.voice.triggerAttackRelease(SCALE[N - 1 - row], '8n');
+  spawnRipple(col, row); poke(L, col, row);
+}
 
 Tone.Transport.bpm.value = 110;
 Tone.Transport.scheduleRepeat((time) => {
@@ -297,9 +352,10 @@ checkNight();
 // Clear button: hold ~1s to wipe the grid. Hold-with-progress-ring so a stray tap never wipes a kid's pattern.
 const CLEAR_HOLD_MS = 1000;
 let clearHoldStart = null;
-// All 8 controls share one row: 4 modes left, 3 layers center, ✕ right. On narrow (phone)
-// screens the full radius makes modes overlap the layer dice, so cap r to what fits.
-const btnR = () => Math.min(bar * 0.34, (innerWidth / 2 - 72) / 11);
+// All 10 controls share one row: 6 modes left, 3 layers center, ✕ right. On narrow (phone)
+// screens the full radius makes the leftmost modes overlap the centered layer dice, so cap r
+// to what fits (6 modes end at 80+12r; leftmost dice starts at w/2−3r−12 → r ≤ (w/2−92)/15).
+const btnR = () => Math.min(bar * 0.34, (innerWidth / 2 - 96) / 15);
 function clearButton() {
   const r = btnR();
   return { x: innerWidth - r - 20, y: innerHeight - bar / 2, r };
@@ -307,7 +363,7 @@ function clearButton() {
 // Mode switcher: three small buttons, bottom-left of the control strip (sets the ACTIVE layer's mode)
 function modeButtons() {
   const r = btnR();
-  return ['score', 'bounce', 'random', 'draw'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y: innerHeight - bar / 2, r }));
+  return ['score', 'bounce', 'random', 'draw', 'push', 'solo'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y: innerHeight - bar / 2, r }));
 }
 // Layer switcher: dice-dot buttons, bottom-center — you edit one layer, all of them sound
 function layerButtons() {
@@ -404,18 +460,28 @@ function draw(now) {
     bandX = from + (to - from) * spring(Math.min(1, (now - drawStepAt) / STEP_MS));
   }
 
+  // In the live modes the active layer's stored pattern is hidden (preserved, not shown): what's
+  // "on" is the transient live-play state — cells a finger is holding (Push), or a brief flash on
+  // the cell just triggered (Solo). Every other mode shows the real grid.
+  const live = A.mode === 'push' || A.mode === 'solo';
+  let heldSet = null;
+  if (A.mode === 'push') { heldSet = new Set(); for (const h of A.held.values()) heldSet.add(h.col * N + h.row); }
+
   for (let col = 0; col < N; col++) {
     for (let row = 0; row < N; row++) {
       const x = ox + col * cell + gap / 2;
       const y = oy + row * cell + gap / 2;
       const s = cell - gap;
       const ccx = x + s / 2, ccy = y + s / 2;
+      const on = live
+        ? (heldSet ? heldSet.has(col * N + row) : (now - A.fired[col][row] < 180))
+        : A.grid[col][row];
       // rubber scale: inflate (born) / jiggle (died) / anisotropic squash (fired) / finger bulge
       let sx = 1, sy = 1, mx = 0, my = 0;
       const tb = (now - A.born[col][row]) / ANIM_MS;
-      if (A.grid[col][row] && tb < 1) { const k = 0.7 + 0.3 * spring(tb); sx *= k; sy *= k; }
+      if (on && tb < 1) { const k = 0.7 + 0.3 * spring(tb); sx *= k; sy *= k; }
       const td = (now - A.died[col][row]) / ANIM_MS;
-      if (!A.grid[col][row] && td < 1) { const k = 1 - 0.1 * Math.exp(-5 * td) * Math.sin(9 * td); sx *= k; sy *= k; }
+      if (!on && td < 1) { const k = 1 - 0.1 * Math.exp(-5 * td) * Math.sin(9 * td); sx *= k; sy *= k; }
       const tf = (now - A.fired[col][row]) / ANIM_MS;
       if (tf < 1) { const q = 0.125 * Math.exp(-5 * tf) * Math.cos(9 * tf); sx *= 1 + q; sy *= 1 - q; }
       for (const p of pointers.values()) {
@@ -441,8 +507,8 @@ function draw(now) {
         const k = 1 + 0.05 * Math.exp(-bd * bd); sx *= k; sy *= k;
       }
       const w = s * sx, h = s * sy;
-      if (col >= A.len) ctx.globalAlpha = 0.35; // beyond the layer's loop end: visible but clearly asleep
-      if (A.grid[col][row]) { // glossy candy blob; gloss stretches with the squash
+      if (col >= A.len && !live) ctx.globalAlpha = 0.35; // beyond the layer's loop end: visible but clearly asleep (loop length is a Score-family idea)
+      if (on) { // glossy candy blob; gloss stretches with the squash
         ctx.drawImage(sprites[tf < 0.22 ? 5 : (N - 1 - row) % 5], x + (s - w) / 2 + mx, y + (s - h) / 2 + my, w, h);
       } else { // idle cells are small soft dots — the inflate-on-toggle has somewhere to go
         const dw = w * 0.5, dh = h * 0.5;
@@ -451,7 +517,7 @@ function draw(now) {
         ctx.roundRect(x + (s - dw) / 2 + mx, y + (s - dh) / 2 + my, dw, dh, Math.min(dw, dh) / 2);
         ctx.fill();
       }
-      if (col >= A.len) ctx.globalAlpha = 1;
+      if (col >= A.len && !live) ctx.globalAlpha = 1;
     }
   }
 
@@ -566,13 +632,30 @@ function draw(now) {
       for (const [dx, dy] of [[-0.4, 0.3], [0, -0.35], [0.4, 0.2]]) {
         ctx.beginPath(); ctx.arc(b.x + dx * b.r, b.y + dy * b.r, b.r * 0.13, 0, Math.PI * 2); ctx.fill();
       }
-    } else { // draw: a loose squiggle
+    } else if (b.m === 'draw') { // draw: a loose squiggle
       ctx.lineWidth = 2.5; ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(b.x - b.r * 0.42, b.y + b.r * 0.25);
       ctx.quadraticCurveTo(b.x - b.r * 0.15, b.y - b.r * 0.5, b.x, b.y);
       ctx.quadraticCurveTo(b.x + b.r * 0.15, b.y + b.r * 0.5, b.x + b.r * 0.42, b.y - b.r * 0.25);
       ctx.stroke();
+    } else if (b.m === 'push') { // push: a chevron pressing down onto a held pad
+      const pw = b.r * 0.32;
+      ctx.beginPath(); ctx.roundRect(b.x - pw, b.y - pw * 0.1, pw * 2, pw * 1.5, pw * 0.4); ctx.fill();
+      ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(b.x - b.r * 0.24, b.y - b.r * 0.5);
+      ctx.lineTo(b.x, b.y - b.r * 0.28);
+      ctx.lineTo(b.x + b.r * 0.24, b.y - b.r * 0.5);
+      ctx.stroke();
+    } else { // solo: a fingertip with radiating sound — touch makes a live tone
+      ctx.beginPath(); ctx.arc(b.x - b.r * 0.12, b.y, b.r * 0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 2; ctx.lineCap = 'round';
+      for (let k = 1; k <= 2; k++) {
+        ctx.beginPath();
+        ctx.arc(b.x - b.r * 0.12, b.y, b.r * (0.15 + k * 0.2), -Math.PI * 0.32, Math.PI * 0.32);
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }
@@ -708,6 +791,7 @@ canvas.addEventListener('pointerdown', (e) => {
   for (const b of modeButtons()) {
     if (Math.hypot(e.clientX - b.x, e.clientY - b.y) <= b.r + 6) {
       const L = layers[li];
+      if (L.mode === 'push') releaseAllHeld(L); // don't leave a drone hanging when Push turns off
       L.mode = b.m; L.randFrom = L.randTo = null;
       btnPop = { id: b.m, at: performance.now() };
       save();
@@ -730,27 +814,36 @@ canvas.addEventListener('pointerdown', (e) => {
   const row = Math.floor((e.clientY - oy) / cell);
   if (col >= 0 && col < N && row >= 0 && row < N) {
     const L = layers[li];
-    const v = !L.grid[col][row];
-    for (const [c, r] of mirrorTargets(col, row)) {
-      if (v && L.mode === 'draw') paintCell(L, c, r); // draw-mode taps evaporate like drawn trails
-      else setCell(L, c, r, v);
+    if (L.mode === 'solo') { pointers.get(e.pointerId).cell = col * N + row; playSolo(L, col, row); }
+    else if (L.mode === 'push') { pushDown(e.pointerId, L, col, row); }
+    else { // score / bounce / random / draw: tap toggles (or paints, in Draw)
+      const v = !L.grid[col][row];
+      for (const [c, r] of mirrorTargets(col, row)) {
+        if (v && L.mode === 'draw') paintCell(L, c, r); // draw-mode taps evaporate like drawn trails
+        else setCell(L, c, r, v);
+      }
+      save();
     }
-    save();
   }
 });
 canvas.addEventListener('pointermove', (e) => {
-  if (!pointers.has(e.pointerId)) return;
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  p.x = e.clientX; p.y = e.clientY; // mutate in place so a Solo pointer keeps its tracked cell
   const L = layers[li];
-  if (L.mode !== 'draw') return; // dragging paints only in Draw mode
   const col = Math.floor((e.clientX - ox) / cell);
   const row = Math.floor((e.clientY - oy) / cell);
-  if (col >= 0 && col < N && row >= 0 && row < N) {
-    for (const [c, r] of mirrorTargets(col, row)) paintCell(L, c, r);
+  const inGrid = col >= 0 && col < N && row >= 0 && row < N;
+  if (L.mode === 'draw') {
+    if (inGrid) for (const [c, r] of mirrorTargets(col, row)) paintCell(L, c, r);
+  } else if (L.mode === 'solo') { // glissando: sound each new cell the finger slides into
+    if (inGrid && p.cell !== col * N + row) { p.cell = col * N + row; playSolo(L, col, row); }
+  } else if (L.mode === 'push') { // the held note follows the finger
+    if (inGrid) pushMove(e.pointerId, L, col, row);
   }
 });
 addEventListener('pointerup', async (e) => {
-  clearHoldStart = null; pointers.delete(e.pointerId); clearTimeout(panelHold);
+  clearHoldStart = null; pushUp(e.pointerId); pointers.delete(e.pointerId); clearTimeout(panelHold);
   if (!started) {
     // iOS Safari only grants the audio-unlock user activation on touch END, not start —
     // resume() called from pointerdown hangs forever there. Unlock here, flag on success
@@ -763,7 +856,7 @@ addEventListener('pointerup', async (e) => {
     } catch (err) { console.warn('audio unlock failed, will retry', err); }
   }
 });
-addEventListener('pointercancel', (e) => { clearHoldStart = null; pointers.delete(e.pointerId); clearTimeout(panelHold); });
+addEventListener('pointercancel', (e) => { clearHoldStart = null; pushUp(e.pointerId); pointers.delete(e.pointerId); clearTimeout(panelHold); });
 
 // ---------- Grown-up panel (opened by a 3s corner hold, above) ----------
 const panel = document.getElementById('panel');

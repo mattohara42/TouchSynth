@@ -23,7 +23,6 @@
 - [x] Mirror painting: grown-up panel select — off / left-right echo / kaleidoscope (4-way); partners follow the tapped cell's new state via shared setCell() (2026-07-12)
 - [x] Per-layer voices: marimba / soft pluck / FM glass bells, one PolySynth per layer into the shared limiter (2026-07-12 — NOT heard by human ears yet, see Smells)
 - [x] Draw mode: 4th mode button (squiggle icon) — dragging paints dots that play like Score and evaporate after ~4 loops; taps in Draw evaporate too; mirror painting applies to trails (2026-07-12)
-- [ ] Attract mode plays real tunes: ghost patterns kids recognize (Twinkle Twinkle, Frère Jacques) instead of abstract sine/arpeggio — stronger lure to walk up
 - [x] Attract homage presets: Roygbiv-shaped rise-fall contour (score) + sparse Autechre polyrhythm (bounce, periods 12/9/6/4); attract patterns now carry their own mode (2026-07-12 — kept at session tempo, not 90 BPM: attract shouldn't silently change a saved tempo)
 - [ ] Teaching tool: info blob in the GROWN-UP panel (kid surface stays text-free) — "who makes music like this" card with link-out. On the wall panel a tappable link is useless (kiosk) — render a QR code so a parent scans it with their phone. Full roster (Matt: include them all; loves Reich), grouped:
   - Lineage: Toshio Iwai (Tenori-on designer, Electroplankton), Laurie Spiegel (Music Mouse), Brian Eno (Bloom), Kraftwerk
@@ -33,7 +32,7 @@
 - [x] Per-layer loop length (the Steve Reich feature): a layer looping at 15 or 17 steps drifts in and out of phase with a 16-step layer, à la Piano Phase / Clapping Music — grown-up panel sliders, kid surface unchanged, faithful to the Tenori-on's per-layer loop points (2026-07-12)
 - [x] Scale swap (grown-up panel): major pentatonic / minor pentatonic / hirajoshi select; colors follow scale degree so the candy palette works for all (2026-07-12; whole-tone dropped — 6 notes doesn't fit the 5-degree color/scale system)
 - [x] Swing: grown-up panel slider 0-50%, Tone.Transport.swing @ 16n (2026-07-12)
-- [ ] Remaining Tenori-on modes via the MODES seam: Push (lit cell sustains while held), Solo (cells sound while touched — theremin for the pre-pattern age group)
+- [x] Remaining Tenori-on modes via the MODES seam: Push (lit cell sustains while held), Solo (cells sound while touched — theremin for the pre-pattern age group) — 2 new mode buttons (6 total); both are LIVE touch-driven modes (no-op on the transport). Push holds cells via a dedicated shared pad voice (drone/chords, finger-follow on drag); Solo plucks the layer's own voice per touched cell (glissando on slide). Active layer's stored pattern is hidden+preserved while in a live mode (2026-07-13)
 - [x] The Eno switch: "garden" select in grown-up panel — one dot grown/pruned on the active layer every 8 bars (floor 3, cap 24, never touches an empty grid — attract owns that); evolved pattern persists across reboots (2026-07-12)
 
 ## Later / Ideas
@@ -50,11 +49,15 @@
 - [ ] Volume strategy for kitchen/wall placement (time-of-day aware? panel hardware volume?)
 
 ## Smells / Watch items
-- FM bell voice (layer 3) volume set to -14 dB by ear-less arithmetic — NOBODY has heard the three voices together; listen and rebalance before the panel goes on a wall.
+- ~~FM bell voice (layer 3) volume set to -14 dB by ear-less arithmetic — NOBODY has heard the three voices together~~ RESOLVED 2026-07-13: Matt heard all three together; mix call was octaves, not levels — voice 2 (pluck) +1 octave, voice 3 (bells) −1 octave via per-voice detune (±1200 cents). Volumes stood.
 - Loudness with 3 dense layers: all layers share one -8 dB synth into the -3 dB limiter; heavy patterns on all three could pump the limiter. Listen on the panel; if it squashes, drop synth volume ~3 dB.
+- Push pad voice volume -12 dB set by ear-less arithmetic (same sin as the layer voices) — a held chord (several fingers) plus three sequencer layers all hit the one -3 dB limiter; listen before the wall, drop the pad if a big held chord pumps it.
 
 ## Assumptions log
 - (Claude Code: when proceeding unattended on an ambiguous decision, record it here with date + rationale)
+- 2026-07-13: Push + Solo (the last two Tenori-on modes) are LIVE performance modes, not sequencer patterns — they make NO sound on the transport clock (registered as no-op MODES.push/solo so the step loop and save-load validation stay uniform); the finger IS the sequencer. Pitch = row like Score, but COLUMN is ignored so a whole row is one fat touch target (kid-friendly). While the active layer is in a live mode its stored pattern is HIDDEN, not cleared (never nuke a kid's work — switching back to Score restores it); non-active layers with a leftover pattern still ghost-render silently, a rare edge kept simple.
+- 2026-07-13: Push needs true sustain but the three layer voices are all sustain:0 plucks, so Push uses a DEDICATED shared pad voice (soft triangle, sustain 0.7, gentle attack/release) — hold a cell = drone, hold several = a chord, drag = the held note follows the finger (release old / attack new). The per-layer dice voice is therefore ignored in Push (it's a different instrument); it stays meaningful in Solo, which plucks the layer's own voice once per touched cell (slide = glissando). Push held-cell state is transient (Map pointerId→cell per layer), never written to placed[]/localStorage. pushUp scans all layers so a note started before a layer switch still releases on finger-up.
+- 2026-07-13: Control strip now 10 buttons (6 modes + 3 layer dice + ✕); btnR narrow-screen cap retuned to (innerWidth/2−96)/15 so the 6th mode button clears the centered dice on phones. Wall panel (1920px landscape) unaffected — cap doesn't bind, r = bar*0.34. Push icon = a down-chevron pressing a rounded pad; Solo icon = a fingertip with radiating sound arcs.
 - 2026-07-12: Layers (faithful reading, per Claude's stated default that Matt greenlit): 3 layers, ALL audible simultaneously, each with its OWN mode; you edit one at a time. Mode buttons show/set the active layer's mode. Switcher = 3 dice-dot circle buttons bottom-center (1/2/3 dots — no reading required). Switching layers inflates the incoming layer's cells so the swap is legible.
 - 2026-07-12: Non-active layers render as half-size dim candy dots (alpha 0.32) so a kid can see something else is singing and find it; their ripples and cell-squash still appear (the sound leaves a visual trace), but their bounce balls / random lights don't render — only the active layer gets full mode visuals, like the original.
 - 2026-07-12: Hold-✕ clears the ACTIVE layer only (never nukes a sibling layer's pattern); wipe-all = clear each layer in turn. Idle attract now waits for ALL layers empty and the ghost plays on whichever layer is active.
