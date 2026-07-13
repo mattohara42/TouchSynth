@@ -190,6 +190,13 @@ const MODES = {
       spawnRipple(col, row); poke(L, col, row);
     }, time);
   },
+  // Draw: plays like Score, but painted dots evaporate a few loops after placement —
+  // the drag gesture becomes a melody that echoes for a while, then clears itself.
+  draw(L, step, time) {
+    const cutoff = performance.now(); // direct removal, not via Tone.Draw — expiry must survive rAF stalls
+    for (const p of [...L.placed]) if (p.exp && cutoff > p.exp) setCell(L, p.col, p.row, false);
+    MODES.score(L, step, time);
+  },
 };
 
 Tone.Transport.bpm.value = 110;
@@ -206,7 +213,8 @@ let cell = 0, gap = 0, ox = 0, oy = 0, bar = 0; // cell size, gap, grid origin, 
 
 // Candy palette by PITCH CLASS: same note = same color in every octave (C D E G A).
 // Score/Random pitch = row → ci = (N-1-row) % 5; Bounce pitch = column → ci = col % 5.
-const CANDY = ['255,107,129', '255,169,77', '255,212,59', '61,220,151', '94,168,255']; // strawberry mango lemon mint blueberry
+const DAY_CANDY = ['255,107,129', '255,169,77', '255,212,59', '61,220,151', '94,168,255']; // strawberry mango lemon mint blueberry
+let CANDY = DAY_CANDY; // swapped to a dimmed set after bedtime (see night palette below)
 const sprites = []; // pre-rendered glossy blobs, one per pitch class + white flash at [5] — no per-frame gradients on the panel
 function makeSprites() {
   const dpr = window.devicePixelRatio || 1;
@@ -246,12 +254,31 @@ function layout() {
 addEventListener('resize', layout);
 layout();
 
+// Night palette: after bedtime the wall glows dimmer and sings softer (kitchen-wall practicality)
+const DAY_BG = '#1a1024', NIGHT_BG = '#0f0916';
+let BG = DAY_BG, night = null;
+function applyNight(on) {
+  night = on;
+  CANDY = on ? DAY_CANDY.map((c) => c.split(',').map((n) => Math.round(n * 0.55)).join(',')) : DAY_CANDY;
+  BG = on ? NIGHT_BG : DAY_BG;
+  document.body.style.background = BG;
+  Tone.Destination.volume.value = on ? -8 : 0;
+  makeSprites();
+}
+function checkNight() {
+  const h = new Date().getHours();
+  const on = h >= 20 || h < 7; // ponytail: fixed 20:00-07:00; make it a panel setting if bedtime varies
+  if (on !== night) applyNight(on);
+}
+setInterval(checkNight, 60000);
+checkNight();
+
 // Clear button: hold ~1s to wipe the grid. Hold-with-progress-ring so a stray tap never wipes a kid's pattern.
 const CLEAR_HOLD_MS = 1000;
 let clearHoldStart = null;
-// All 7 controls share one row: 3 modes left, 3 layers center, ✕ right. On narrow (phone)
+// All 8 controls share one row: 4 modes left, 3 layers center, ✕ right. On narrow (phone)
 // screens the full radius makes modes overlap the layer dice, so cap r to what fits.
-const btnR = () => Math.min(bar * 0.34, (innerWidth / 2 - 60) / 9);
+const btnR = () => Math.min(bar * 0.34, (innerWidth / 2 - 72) / 11);
 function clearButton() {
   const r = btnR();
   return { x: innerWidth - r - 20, y: innerHeight - bar / 2, r };
@@ -259,7 +286,7 @@ function clearButton() {
 // Mode switcher: three small buttons, bottom-left of the control strip (sets the ACTIVE layer's mode)
 function modeButtons() {
   const r = btnR();
-  return ['score', 'bounce', 'random'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y: innerHeight - bar / 2, r }));
+  return ['score', 'bounce', 'random', 'draw'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y: innerHeight - bar / 2, r }));
 }
 // Layer switcher: dice-dot buttons, bottom-center — you edit one layer, all of them sound
 function layerButtons() {
@@ -268,7 +295,7 @@ function layerButtons() {
 }
 
 function setCell(L, col, row, v) { // one place owns toggle bookkeeping: grid, tap order, anim stamps
-  if (L.grid[col][row] === v) return;
+  if (L.grid[col][row] === v) return false;
   L.grid[col][row] = v;
   if (v) {
     L.placed.push({ col, row });
@@ -279,6 +306,19 @@ function setCell(L, col, row, v) { // one place owns toggle bookkeeping: grid, t
     if (i >= 0) L.placed.splice(i, 1);
     L.died[col][row] = performance.now();
   }
+  return true;
+}
+
+const DRAW_LOOPS = 4; // Draw-mode dots evaporate after ~4 passes of their layer's loop
+function paintCell(L, col, row) {
+  if (setCell(L, col, row, true)) L.placed[L.placed.length - 1].exp = performance.now() + DRAW_LOOPS * L.len * STEP_MS;
+}
+
+function mirrorTargets(col, row) { // N is even, so a cell is never its own mirror
+  const t = [[col, row]];
+  if (mirror !== 'off') t.push([N - 1 - col, row]);
+  if (mirror === 'kaleido') t.push([col, N - 1 - row], [N - 1 - col, N - 1 - row]);
+  return t;
 }
 
 function clearGrid(L = layers[li]) { // ponytail: clears one layer; wipe-all = hold ✕ on each layer
@@ -317,7 +357,7 @@ function spawnRipple(col, row, ci = (N - 1 - row) % 5) { // ci: pitch-class colo
 
 function draw(now) {
   const A = layers[li]; // the layer being edited — drawn full-strength; others ghost
-  ctx.fillStyle = '#1a1024';
+  ctx.fillStyle = BG;
   ctx.fillRect(0, 0, innerWidth, innerHeight);
 
   // Membrane pass: age ripples once and keep ring geometry — cells sample it below, ring draw reuses it
@@ -336,7 +376,7 @@ function draw(now) {
 
   // Score playhead: spring-eased glow band that lands on each column with a little overshoot
   let bandX = null;
-  if (A.mode === 'score' && drawStep >= 0) {
+  if ((A.mode === 'score' || A.mode === 'draw') && drawStep >= 0) {
     const ph = drawStep % A.len; // playhead follows the active layer's own loop
     const from = ox + (ph - 1) * cell + cell / 2; // col 0 re-enters from the left edge
     const to = ox + ph * cell + cell / 2;
@@ -495,7 +535,7 @@ function draw(now) {
       ctx.beginPath(); ctx.arc(b.x, b.y - b.r * 0.15, b.r * 0.2, 0, Math.PI * 2); ctx.fill();
       ctx.lineWidth = 2.5; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(b.x - b.r * 0.4, b.y + b.r * 0.42); ctx.lineTo(b.x + b.r * 0.4, b.y + b.r * 0.42); ctx.stroke();
-    } else { // random: dot-to-dot zigzag
+    } else if (b.m === 'random') { // dot-to-dot zigzag
       ctx.lineWidth = 2; ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(b.x - b.r * 0.4, b.y + b.r * 0.3);
@@ -505,6 +545,13 @@ function draw(now) {
       for (const [dx, dy] of [[-0.4, 0.3], [0, -0.35], [0.4, 0.2]]) {
         ctx.beginPath(); ctx.arc(b.x + dx * b.r, b.y + dy * b.r, b.r * 0.13, 0, Math.PI * 2); ctx.fill();
       }
+    } else { // draw: a loose squiggle
+      ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(b.x - b.r * 0.42, b.y + b.r * 0.25);
+      ctx.quadraticCurveTo(b.x - b.r * 0.15, b.y - b.r * 0.5, b.x, b.y);
+      ctx.quadraticCurveTo(b.x + b.r * 0.15, b.y + b.r * 0.5, b.x + b.r * 0.42, b.y - b.r * 0.25);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -570,17 +617,22 @@ let attractIdx = 0;
 
 const ATTRACT_PATTERNS = [
   // rolling wave across the full width
-  () => Array.from({ length: N }, (_, c) => [c, Math.round(7.5 + 4 * Math.sin((c / N) * Math.PI * 2))]),
+  () => ({ mode: 'score', dots: Array.from({ length: N }, (_, c) => [c, Math.round(7.5 + 4 * Math.sin((c / N) * Math.PI * 2))]) }),
   // sparse bobbing arpeggio
-  () => [0, 2, 4, 6, 8, 10, 12, 14].map((c, i) => [c, [12, 9, 6, 9][i % 4]]),
+  () => ({ mode: 'score', dots: [0, 2, 4, 6, 8, 10, 12, 14].map((c, i) => [c, [12, 9, 6, 9][i % 4]]) }),
+  // BoC homage (evoke, don't transcribe): sparse dots, lazy rise-and-fall contour
+  () => ({ mode: 'score', dots: [[0, 12], [2, 10], [4, 9], [6, 7], [7, 6], [9, 7], [11, 9], [13, 10], [15, 12]] }),
+  // Autechre homage: sparse Bounce polyrhythm — heights give interlocking periods 12/9/6/4
+  () => ({ mode: 'bounce', dots: [[2, 4], [6, 7], [10, 10], [13, 12]] }),
 ];
 
 function startAttract() {
   const L = layers[li]; // ghost plays on whatever layer is up — all layers are empty anyway
-  L.mode = 'score';
+  const pat = ATTRACT_PATTERNS[attractIdx++ % ATTRACT_PATTERNS.length]();
+  L.mode = pat.mode;
   attract = {
     phase: 'placing', i: 0, holdUntil: 0,
-    dots: ATTRACT_PATTERNS[attractIdx++ % ATTRACT_PATTERNS.length](),
+    dots: pat.dots,
     timer: setInterval(() => {
       if (attract.phase === 'placing') {
         const [c, r] = attract.dots[attract.i++];
@@ -658,14 +710,24 @@ canvas.addEventListener('pointerdown', (e) => {
   if (col >= 0 && col < N && row >= 0 && row < N) {
     const L = layers[li];
     const v = !L.grid[col][row];
-    setCell(L, col, row, v);
-    // mirror painting: partners follow the tapped cell's new state (N is even, no self-mirror)
-    if (mirror !== 'off') setCell(L, N - 1 - col, row, v);
-    if (mirror === 'kaleido') { setCell(L, col, N - 1 - row, v); setCell(L, N - 1 - col, N - 1 - row, v); }
+    for (const [c, r] of mirrorTargets(col, row)) {
+      if (v && L.mode === 'draw') paintCell(L, c, r); // draw-mode taps evaporate like drawn trails
+      else setCell(L, c, r, v);
+    }
     save();
   }
 });
-canvas.addEventListener('pointermove', (e) => { if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); });
+canvas.addEventListener('pointermove', (e) => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const L = layers[li];
+  if (L.mode !== 'draw') return; // dragging paints only in Draw mode
+  const col = Math.floor((e.clientX - ox) / cell);
+  const row = Math.floor((e.clientY - oy) / cell);
+  if (col >= 0 && col < N && row >= 0 && row < N) {
+    for (const [c, r] of mirrorTargets(col, row)) paintCell(L, c, r);
+  }
+});
 addEventListener('pointerup', async (e) => {
   clearHoldStart = null; pointers.delete(e.pointerId); clearTimeout(panelHold);
   if (!started) {
