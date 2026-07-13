@@ -174,18 +174,21 @@ layout();
 // Clear button: hold ~1s to wipe the grid. Hold-with-progress-ring so a stray tap never wipes a kid's pattern.
 const CLEAR_HOLD_MS = 1000;
 let clearHoldStart = null;
+// All 7 controls share one row: 3 modes left, 3 layers center, ✕ right. On narrow (phone)
+// screens the full radius makes modes overlap the layer dice, so cap r to what fits.
+const btnR = () => Math.min(bar * 0.34, (innerWidth / 2 - 60) / 9);
 function clearButton() {
-  const r = bar * 0.34;
+  const r = btnR();
   return { x: innerWidth - r - 20, y: innerHeight - bar / 2, r };
 }
 // Mode switcher: three small buttons, bottom-left of the control strip (sets the ACTIVE layer's mode)
 function modeButtons() {
-  const r = bar * 0.34;
+  const r = btnR();
   return ['score', 'bounce', 'random'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y: innerHeight - bar / 2, r }));
 }
 // Layer switcher: dice-dot buttons, bottom-center — you edit one layer, all of them sound
 function layerButtons() {
-  const r = bar * 0.34;
+  const r = btnR();
   return layers.map((_, i) => ({ i, x: innerWidth / 2 + (i - 1) * (r * 2 + 12), y: innerHeight - bar / 2, r }));
 }
 
@@ -521,17 +524,11 @@ setInterval(() => {
 
 // ---------- Input ----------
 let started = false;
-canvas.addEventListener('pointerdown', async (e) => {
+canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   lastTouch = performance.now();
   ptr = { x: e.clientX, y: e.clientY };
   if (attract) stopAttract(); // hand the grid to the kid instantly
-  if (!started) {
-    started = true;
-    await Tone.start();
-    Tone.Transport.start();
-    document.getElementById('hint').style.opacity = '0';
-  }
   if (e.clientX < 90 && e.clientY < 90) { // dead space above the grid — kids have no reason to hold here
     panelHold = setTimeout(() => { panel.style.display = 'flex'; }, 3000);
     return;
@@ -578,7 +575,20 @@ canvas.addEventListener('pointerdown', async (e) => {
   }
 });
 canvas.addEventListener('pointermove', (e) => { if (ptr) ptr = { x: e.clientX, y: e.clientY }; });
-addEventListener('pointerup', () => { clearHoldStart = null; ptr = null; clearTimeout(panelHold); });
+addEventListener('pointerup', async () => {
+  clearHoldStart = null; ptr = null; clearTimeout(panelHold);
+  if (!started) {
+    // iOS Safari only grants the audio-unlock user activation on touch END, not start —
+    // resume() called from pointerdown hangs forever there. Unlock here, flag on success
+    // so a failed attempt retries on the next tap.
+    try {
+      await Tone.start();
+      Tone.Transport.start();
+      started = true;
+      document.getElementById('hint').style.opacity = '0';
+    } catch (err) { console.warn('audio unlock failed, will retry', err); }
+  }
+});
 addEventListener('pointercancel', () => { clearHoldStart = null; ptr = null; clearTimeout(panelHold); });
 
 // ---------- Grown-up panel (opened by a 3s corner hold, above) ----------
