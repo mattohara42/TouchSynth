@@ -24,7 +24,7 @@
 - [x] Per-layer voices: marimba / soft pluck / FM glass bells, one PolySynth per layer into the shared limiter (2026-07-12 — NOT heard by human ears yet, see Smells)
 - [x] Draw mode: 4th mode button (squiggle icon) — dragging paints dots that play like Score and evaporate after ~4 loops; taps in Draw evaporate too; mirror painting applies to trails (2026-07-12)
 - [x] Attract homage presets: Roygbiv-shaped rise-fall contour (score) + sparse Autechre polyrhythm (bounce, periods 12/9/6/4); attract patterns now carry their own mode (2026-07-12 — kept at session tempo, not 90 BPM: attract shouldn't silently change a saved tempo)
-- [ ] Teaching tool: info blob in the GROWN-UP panel (kid surface stays text-free) — "who makes music like this" card with link-out. On the wall panel a tappable link is useless (kiosk) — render a QR code so a parent scans it with their phone. Full roster (Matt: include them all; loves Reich), grouped:
+- [x] Teaching tool: info blob in the GROWN-UP panel (kid surface stays text-free) — "who makes music like this" card with link-out. On the wall panel a tappable link is useless (kiosk) — render a QR code so a parent scans it with their phone. Full roster (Matt: include them all; loves Reich), grouped (shipped: `#teach` card in index.html + QR to `/artists.html`, family tree / the sound / the warmth):
   - Lineage: Toshio Iwai (Tenori-on designer, Electroplankton), Laurie Spiegel (Music Mouse), Brian Eno (Bloom), Kraftwerk
   - Sound: Steve Reich (Six Marimbas, Music for 18 Musicians), Terry Riley (In C), gamelan tradition
   - Warmth: Boards of Canada, Mort Garson (Plantasia), Raymond Scott (Soothing Sounds for Baby), Lullatone, Plaid, Sakamoto/YMO, Aphex Twin (Flim, Avril 14th), Squarepusher (Tommib), Autechre (as process: Bounce-mode polyrhythms)
@@ -34,6 +34,12 @@
 - [x] Swing: grown-up panel slider 0-50%, Tone.Transport.swing @ 16n (2026-07-12)
 - [x] Remaining Tenori-on modes via the MODES seam: Push (lit cell sustains while held), Solo (cells sound while touched — theremin for the pre-pattern age group) — 2 new mode buttons (6 total); both are LIVE touch-driven modes (no-op on the transport). Push holds cells via a dedicated shared pad voice (drone/chords, finger-follow on drag); Solo plucks the layer's own voice per touched cell (glissando on slide). Active layer's stored pattern is hidden+preserved while in a live mode (2026-07-13)
 - [x] The Eno switch: "garden" select in grown-up panel — one dot grown/pruned on the active layer every 8 bars (floor 3, cap 24, never touches an empty grid — attract owns that); evolved pattern persists across reboots (2026-07-12)
+
+## Next visualizations (design-approved, see CONCEPTS.md)
+Two additional Tone.js + Canvas toys. Full specs in **CONCEPTS.md**; UI direction approved by Matt via the root mockups. Suggested build order: Pond Chimes first (smaller, reuses the ripple), then Chord Garden (most new art/growth work).
+- [ ] Pond Chimes — ambient self-playing pond that sings when you tap the fish; creature-per-register ensemble (fish=melody, lilies=harmony, frogs=bass, dragonflies/hummingbirds=sparkle), all pentatonic/key-locked. Reuses the Grid Sings ripple. Visual spec: `pond-chimes-mockup.html`. Scope M1: fish + lily pads.
+- [ ] Chord Garden (chili edition) — plant chili peppers that grow (~6s) into looping arpeggios; Scoville = harmonic tension (Hatch add9 → Carolina Reaper cluster). Procedural Canvas art, six-pepper seed tray as the only chrome. Visual spec: `chord-garden-mockup.html`.
+- [ ] OPEN (flag, don't decide silently): CONCEPTS.md says each toy gets its OWN repo + Netlify site. If instead these ship as extra *visualizations inside* Grid Sings, that's a different architecture call (shared shell, mode/toy switcher) — confirm with Matt before either build starts.
 
 ## Later / Ideas
 - [x] Rubber UI Tier 2 — grid as soft membrane: ripples displace/scale nearby cells, springy playhead glow band with overshoot, bounce-ball squash on floor impact, squishy depress-and-boing buttons (Tier 1 — spring fn, inflate/deflate on toggle, squash on fire, finger bulge — shipped 2026-07-12; Tier 2 shipped same day)
