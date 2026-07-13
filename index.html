@@ -12,11 +12,33 @@
     color: #9b8bb0; font: 300 clamp(20px, 3vw, 34px) system-ui, sans-serif;
     letter-spacing: 0.08em; pointer-events: none; transition: opacity 0.8s;
   }
+  /* Grown-up panel: hidden settings card, opened by a 3s hold kids won't discover */
+  #panel {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    display: none; flex-direction: column; gap: 22px;
+    background: #2b1b3d; border-radius: 24px; padding: 30px 34px;
+    color: #d8c8e8; font: 500 clamp(16px, 2vw, 20px) system-ui, sans-serif;
+    box-shadow: 0 12px 60px rgba(0, 0, 0, 0.55);
+  }
+  #panel label { display: flex; flex-direction: column; gap: 10px; }
+  #panel input[type=range] { width: min(340px, 60vw); height: 44px; accent-color: #ff8cbe; }
+  #panel button {
+    height: 52px; border: 0; border-radius: 14px; cursor: pointer;
+    background: rgba(190, 160, 215, 0.16); color: #d8c8e8; font: inherit;
+  }
+  #panel button:active { background: rgba(255, 140, 190, 0.25); }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="hint">tap anywhere to begin</div>
+<div id="panel">
+  <label>tempo — <span id="bpmVal">110</span> BPM
+    <input id="bpm" type="range" min="60" max="180" step="5" value="110">
+  </label>
+  <button id="clearAll">clear all layers</button>
+  <button id="panelClose">done</button>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 <script>
 'use strict';
@@ -55,7 +77,7 @@ synth.chain(new Tone.Limiter(-3), Tone.Destination);
 let playhead = -1;   // render-side copies, updated in sync with audio via Tone.Draw
 let drawStep = -1, drawStepAt = 0;
 let audioStep = -1;  // audio-side step counter
-const STEP_MS = 60000 / 110 / 4; // one 16th at the fixed 110 BPM
+let STEP_MS = 60000 / 110 / 4; // one 16th; retuned by the panel's tempo slider
 
 const MODES = {
   // Score: playhead sweeps left→right, active cells in the current column fire.
@@ -510,6 +532,10 @@ canvas.addEventListener('pointerdown', async (e) => {
     Tone.Transport.start();
     document.getElementById('hint').style.opacity = '0';
   }
+  if (e.clientX < 90 && e.clientY < 90) { // dead space above the grid — kids have no reason to hold here
+    panelHold = setTimeout(() => { panel.style.display = 'flex'; }, 3000);
+    return;
+  }
   const btn = clearButton();
   if (Math.hypot(e.clientX - btn.x, e.clientY - btn.y) <= btn.r + 6) {
     clearHoldStart = performance.now();
@@ -552,8 +578,20 @@ canvas.addEventListener('pointerdown', async (e) => {
   }
 });
 canvas.addEventListener('pointermove', (e) => { if (ptr) ptr = { x: e.clientX, y: e.clientY }; });
-addEventListener('pointerup', () => { clearHoldStart = null; ptr = null; });
-addEventListener('pointercancel', () => { clearHoldStart = null; ptr = null; });
+addEventListener('pointerup', () => { clearHoldStart = null; ptr = null; clearTimeout(panelHold); });
+addEventListener('pointercancel', () => { clearHoldStart = null; ptr = null; clearTimeout(panelHold); });
+
+// ---------- Grown-up panel (opened by a 3s corner hold, above) ----------
+const panel = document.getElementById('panel');
+let panelHold = null;
+const bpmSlider = document.getElementById('bpm');
+bpmSlider.addEventListener('input', () => {
+  Tone.Transport.bpm.value = +bpmSlider.value;
+  STEP_MS = 60000 / +bpmSlider.value / 4;
+  document.getElementById('bpmVal').textContent = bpmSlider.value;
+});
+document.getElementById('clearAll').addEventListener('click', () => layers.forEach((L) => clearGrid(L)));
+document.getElementById('panelClose').addEventListener('click', () => { panel.style.display = 'none'; });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // Self-check: scale mapping sanity (visible in console only, costs nothing)
