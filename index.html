@@ -42,8 +42,17 @@
 <canvas id="c"></canvas>
 <div id="hint">tap anywhere to begin</div>
 <div id="panel">
-  <label>tempo — <span id="bpmVal">110</span> BPM
+  <label><span>tempo — <span id="bpmVal">110</span> BPM</span>
     <input id="bpm" type="range" min="60" max="180" step="5" value="110">
+  </label>
+  <label><span>layer 1 loop — <span id="len0v">16</span> steps</span>
+    <input class="len" data-l="0" type="range" min="4" max="16" value="16">
+  </label>
+  <label><span>layer 2 loop — <span id="len1v">16</span> steps</span>
+    <input class="len" data-l="1" type="range" min="4" max="16" value="16">
+  </label>
+  <label><span>layer 3 loop — <span id="len2v">16</span> steps</span>
+    <input class="len" data-l="2" type="range" min="4" max="16" value="16">
   </label>
   <button id="clearAll">clear all layers</button>
   <div id="teach">
@@ -72,6 +81,7 @@ const mkLayer = () => ({
   grid: Array.from({ length: N }, () => Array(N).fill(false)),
   placed: [], // tap order of ON cells — Random mode plays dots in placement order
   mode: 'score',
+  len: N, // Score-mode loop length; unequal lengths across layers = Reich-style phasing
   randFrom: null, randTo: null, randAt: 0, // random-mode light: previous dot, current dot, hop start
   born: Array.from({ length: N }, () => Array(N).fill(-1e9)),  // inflate on toggle-on
   died: Array.from({ length: N }, () => Array(N).fill(-1e9)),  // jiggle on toggle-off
@@ -94,8 +104,7 @@ const synth = new Tone.PolySynth(Tone.Synth, {
 // ponytail: limiter only, no reverb/FX chain — add a small Tone.Reverb if it sounds too dry on the panel
 synth.chain(new Tone.Limiter(-3), Tone.Destination);
 
-let playhead = -1;   // render-side copies, updated in sync with audio via Tone.Draw
-let drawStep = -1, drawStepAt = 0;
+let drawStep = -1, drawStepAt = 0; // render-side copies, updated in sync with audio via Tone.Draw
 let audioStep = -1;  // audio-side step counter
 let STEP_MS = 60000 / 110 / 4; // one 16th; retuned by the panel's tempo slider
 
@@ -103,7 +112,7 @@ const MODES = {
   // Score: playhead sweeps left→right, active cells in the current column fire.
   // Pitch = row (bottom low, top high).
   score(L, step, time) {
-    const col = step % N;
+    const col = step % L.len;
     for (let row = 0; row < N; row++) {
       if (L.grid[col][row]) {
         synth.triggerAttackRelease(SCALE[N - 1 - row], '16n', time);
@@ -141,7 +150,7 @@ Tone.Transport.bpm.value = 110;
 Tone.Transport.scheduleRepeat((time) => {
   audioStep++;
   for (const L of layers) MODES[L.mode](L, audioStep, time);
-  Tone.Draw.schedule(() => { drawStep = audioStep; drawStepAt = performance.now(); playhead = audioStep % N; }, time);
+  Tone.Draw.schedule(() => { drawStep = audioStep; drawStepAt = performance.now(); }, time);
 }, '16n');
 
 // ---------- Renderer (reads state + ripple queue, decides nothing) ----------
@@ -266,9 +275,10 @@ function draw(now) {
 
   // Score playhead: spring-eased glow band that lands on each column with a little overshoot
   let bandX = null;
-  if (A.mode === 'score' && playhead >= 0) {
-    const from = ox + (playhead - 1) * cell + cell / 2; // col 0 re-enters from the left edge
-    const to = ox + playhead * cell + cell / 2;
+  if (A.mode === 'score' && drawStep >= 0) {
+    const ph = drawStep % A.len; // playhead follows the active layer's own loop
+    const from = ox + (ph - 1) * cell + cell / 2; // col 0 re-enters from the left edge
+    const to = ox + ph * cell + cell / 2;
     bandX = from + (to - from) * spring(Math.min(1, (now - drawStepAt) / STEP_MS));
   }
 
@@ -309,6 +319,7 @@ function draw(now) {
         const k = 1 + 0.10 * Math.exp(-bd * bd); sx *= k; sy *= k;
       }
       const w = s * sx, h = s * sy;
+      if (col >= A.len) ctx.globalAlpha = 0.35; // beyond the layer's loop end: visible but clearly asleep
       if (A.grid[col][row]) { // glossy candy blob; gloss stretches with the squash
         ctx.drawImage(sprites[tf < 0.22 ? 5 : (N - 1 - row) % 5], x + (s - w) / 2 + mx, y + (s - h) / 2 + my, w, h);
       } else { // idle cells are small soft dots — the inflate-on-toggle has somewhere to go
@@ -318,6 +329,7 @@ function draw(now) {
         ctx.roundRect(x + (s - dw) / 2 + mx, y + (s - dh) / 2 + my, dw, dh, Math.min(dw, dh) / 2);
         ctx.fill();
       }
+      if (col >= A.len) ctx.globalAlpha = 1;
     }
   }
 
@@ -620,6 +632,10 @@ bpmSlider.addEventListener('input', () => {
   STEP_MS = 60000 / +bpmSlider.value / 4;
   document.getElementById('bpmVal').textContent = bpmSlider.value;
 });
+document.querySelectorAll('.len').forEach((s) => s.addEventListener('input', () => {
+  layers[+s.dataset.l].len = +s.value;
+  document.getElementById('len' + s.dataset.l + 'v').textContent = s.value;
+}));
 document.getElementById('clearAll').addEventListener('click', () => layers.forEach((L) => clearGrid(L)));
 document.getElementById('panelClose').addEventListener('click', () => { panel.style.display = 'none'; });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
