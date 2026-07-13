@@ -49,7 +49,7 @@
 - [ ] Volume strategy for kitchen/wall placement (time-of-day aware? panel hardware volume?)
 
 ## Smells / Watch items
-- FM bell voice (layer 3) volume set to -14 dB by ear-less arithmetic — NOBODY has heard the three voices together; listen and rebalance before the panel goes on a wall.
+- ~~FM bell voice (layer 3) volume set to -14 dB by ear-less arithmetic — NOBODY has heard the three voices together~~ RESOLVED 2026-07-13: Matt heard all three together; mix call was octaves, not levels — voice 2 (pluck) +1 octave, voice 3 (bells) −1 octave via per-voice detune (±1200 cents). Volumes stood.
 - Loudness with 3 dense layers: all layers share one -8 dB synth into the -3 dB limiter; heavy patterns on all three could pump the limiter. Listen on the panel; if it squashes, drop synth volume ~3 dB.
 - Push pad voice volume -12 dB set by ear-less arithmetic (same sin as the layer voices) — a held chord (several fingers) plus three sequencer layers all hit the one -3 dB limiter; listen before the wall, drop the pad if a big held chord pumps it.
 

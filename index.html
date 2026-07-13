@@ -144,11 +144,13 @@ const voices = [
   }),
   new Tone.PolySynth(Tone.Synth, { // soft pluck: triangle, short decay
     volume: -9,
+    detune: 1200, // up an octave (Matt's mix call after hearing all three) — shifts pitch only, colors follow scale degree
     oscillator: { type: 'triangle' },
     envelope: { attack: 0.001, decay: 0.35, sustain: 0, release: 0.4 },
   }),
   new Tone.PolySynth(Tone.FMSynth, { // glass bells: FM shimmer, long tail
     volume: -14,
+    detune: -1200, // down an octave (Matt's mix call after hearing all three)
     harmonicity: 8, modulationIndex: 2,
     envelope: { attack: 0.001, decay: 1.6, sustain: 0, release: 1.6 },
     modulationEnvelope: { attack: 0.002, decay: 0.3, sustain: 0, release: 0.3 },
