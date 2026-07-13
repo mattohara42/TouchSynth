@@ -18,6 +18,14 @@
 - [x] 2–3 layers with simple layer switcher (big buttons, not the original's 16) — 3 layers, all sound at once, dice-dot switcher bottom-center (2026-07-12)
 - [x] Tempo control (hidden/grown-up area?) — grown-up panel: 3s hold in top-left corner opens tempo slider (60–180) + clear-all + done (2026-07-12)
 
+## Next (M3 candidates — brainstormed 2026-07-12)
+- [ ] Multi-touch: cell toggling is already per-pointer, but finger-bulge tracks a single `ptr` — track all active pointers so two kids can play at once (wall panel WILL have siblings in front of it)
+- [ ] Mirror painting: every tap also places its mirror (L/R or 4-way kaleidoscope) — mirrored pentatonic is always consonant, zero-skill patterns look and sound composed (~15 lines, best fun-per-effort)
+- [ ] Per-layer voices: marimba / soft pluck / bells — makes the dice buttons audible, stops 3 layers fighting for the same sonic space (also eases the limiter-pumping smell)
+- [ ] Draw mode (real Tenori-on mode): drag paints a trail of dots that play as placed, fade after a few loops — turns the most natural kid gesture (dragging, currently a no-op) into music
+- [ ] Attract mode plays real tunes: ghost patterns kids recognize (Twinkle Twinkle, Frère Jacques) instead of abstract sine/arpeggio — stronger lure to walk up
+- [ ] Night palette: after a set hour, dimmer inks + softer voice — practical for a kitchen wall, charming shift
+
 ## Later / Ideas
 - [x] Rubber UI Tier 2 — grid as soft membrane: ripples displace/scale nearby cells, springy playhead glow band with overshoot, bounce-ball squash on floor impact, squishy depress-and-boing buttons (Tier 1 — spring fn, inflate/deflate on toggle, squash on fire, finger bulge — shipped 2026-07-12; Tier 2 shipped same day)
 - [x] Rubber UI Tier 3 — gummy material look: warm aubergine background, candy palette by pitch class, pre-rendered glossy cell sprites (no per-frame gradients/shadowBlur on the panel), rounder corners + idle cells as small dots, ripple rings in the note's own color (2026-07-12)
