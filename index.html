@@ -19,7 +19,16 @@
     background: #2b1b3d; border-radius: 24px; padding: 30px 34px;
     color: #d8c8e8; font: 500 clamp(16px, 2vw, 20px) system-ui, sans-serif;
     box-shadow: 0 12px 60px rgba(0, 0, 0, 0.55);
+    max-height: 86vh; max-width: min(480px, 92vw); overflow-y: auto;
   }
+  #teach {
+    border-top: 1px solid rgba(190, 160, 215, 0.25); padding-top: 18px;
+    font-size: 0.72em; font-weight: 400; color: #b6a4cc; line-height: 1.5;
+  }
+  #teach b { color: #d8c8e8; }
+  #teach i { font-style: normal; color: #ffd43b; }
+  #teach .qr { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
+  #teach img { width: 96px; height: 96px; border-radius: 8px; image-rendering: pixelated; }
   #panel label { display: flex; flex-direction: column; gap: 10px; }
   #panel input[type=range] { width: min(340px, 60vw); height: 44px; accent-color: #ff8cbe; }
   #panel button {
@@ -37,6 +46,17 @@
     <input id="bpm" type="range" min="60" max="180" step="5" value="110">
   </label>
   <button id="clearAll">clear all layers</button>
+  <div id="teach">
+    <b>who makes music like this?</b><br>
+    The interlocking patterns on this grid? Composer <b>Steve Reich</b> built a career on exactly that.<br>
+    <i>family tree</i> Toshio Iwai (invented the Tenori-on this is a homage to) · Laurie Spiegel · Brian Eno · Kraftwerk<br>
+    <i>the sound</i> Steve Reich · Terry Riley · gamelan<br>
+    <i>the warmth</i> Boards of Canada · Mort Garson · Raymond Scott · Lullatone · Plaid · Sakamoto/YMO · Aphex Twin · Squarepusher · Autechre
+    <div class="qr">
+      <img alt="QR code to artist listening links" src="data:image/png;base64,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">
+      <span>scan for one listening link per artist<br>(or visit /artists.html)</span>
+    </div>
+  </div>
   <button id="panelClose">done</button>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
