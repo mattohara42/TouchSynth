@@ -24,6 +24,8 @@
 - [ ] Per-layer voices: marimba / soft pluck / bells — makes the dice buttons audible, stops 3 layers fighting for the same sonic space (also eases the limiter-pumping smell)
 - [ ] Draw mode (real Tenori-on mode): drag paints a trail of dots that play as placed, fade after a few loops — turns the most natural kid gesture (dragging, currently a no-op) into music
 - [ ] Attract mode plays real tunes: ghost patterns kids recognize (Twinkle Twinkle, Frère Jacques) instead of abstract sine/arpeggio — stronger lure to walk up
+- [ ] Attract homage presets (no transcription, evoke don't copy): a "Roygbiv-shaped" Score pattern — sparse dots, lazy rise-fall contour, ~90 BPM BoC warmth — and a sparse Bounce-mode polyrhythm preset (few dots at different heights → interlocking pulses, the Autechre move)
+- [ ] Teaching tool: info blob in the GROWN-UP panel (kid surface stays text-free) — short "who makes music like this" card: Tenori-on/Toshio Iwai lineage + related artists, with link-out. On the wall panel a tappable link is useless (kiosk) — render a QR code so a parent scans it with their phone
 - [ ] Night palette: after a set hour, dimmer inks + softer voice — practical for a kitchen wall, charming shift
 
 ## Later / Ideas
