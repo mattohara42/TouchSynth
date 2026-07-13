@@ -413,14 +413,14 @@ function draw(now) {
       // rubber scale: inflate (born) / jiggle (died) / anisotropic squash (fired) / finger bulge
       let sx = 1, sy = 1, mx = 0, my = 0;
       const tb = (now - A.born[col][row]) / ANIM_MS;
-      if (A.grid[col][row] && tb < 1) { const k = 0.4 + 0.6 * spring(tb); sx *= k; sy *= k; }
+      if (A.grid[col][row] && tb < 1) { const k = 0.7 + 0.3 * spring(tb); sx *= k; sy *= k; }
       const td = (now - A.died[col][row]) / ANIM_MS;
-      if (!A.grid[col][row] && td < 1) { const k = 1 - 0.2 * Math.exp(-5 * td) * Math.sin(9 * td); sx *= k; sy *= k; }
+      if (!A.grid[col][row] && td < 1) { const k = 1 - 0.1 * Math.exp(-5 * td) * Math.sin(9 * td); sx *= k; sy *= k; }
       const tf = (now - A.fired[col][row]) / ANIM_MS;
-      if (tf < 1) { const q = 0.25 * Math.exp(-5 * tf) * Math.cos(9 * tf); sx *= 1 + q; sy *= 1 - q; }
+      if (tf < 1) { const q = 0.125 * Math.exp(-5 * tf) * Math.cos(9 * tf); sx *= 1 + q; sy *= 1 - q; }
       for (const p of pointers.values()) {
         const b = Math.max(0, 1 - Math.hypot(p.x - ccx, p.y - ccy) / (cell * 2.5));
-        const k = 1 + 0.12 * b; sx *= k; sy *= k;
+        const k = 1 + 0.06 * b; sx *= k; sy *= k;
       }
       // membrane: each ripple ring swells cells it passes over and pushes them radially outward
       for (const wv of waves) {
@@ -431,14 +431,14 @@ function draw(now) {
         const bnd = (d - wv.radius) / (cell * 0.9);
         const infl = Math.exp(-bnd * bnd) * (1 - wv.t);
         if (infl < 0.02) continue;
-        const k = 1 + 0.16 * infl; sx *= k; sy *= k;
-        mx += (dx / d) * infl * cell * 0.10;
-        my += (dy / d) * infl * cell * 0.10;
+        const k = 1 + 0.08 * infl; sx *= k; sy *= k;
+        mx += (dx / d) * infl * cell * 0.05;
+        my += (dy / d) * infl * cell * 0.05;
       }
       // cells bulge as the playhead band rolls over them
       if (bandX !== null) {
         const bd = (ccx - bandX) / (cell * 1.2);
-        const k = 1 + 0.10 * Math.exp(-bd * bd); sx *= k; sy *= k;
+        const k = 1 + 0.05 * Math.exp(-bd * bd); sx *= k; sy *= k;
       }
       const w = s * sx, h = s * sy;
       if (col >= A.len) ctx.globalAlpha = 0.35; // beyond the layer's loop end: visible but clearly asleep
@@ -491,7 +491,7 @@ function draw(now) {
         // squash & stretch: long while moving fast, pancake at floor contact, round at the apex
         const speed = Math.abs(Math.cos(p * Math.PI));
         const floorF = Math.max(0, 1 - h / 0.15);
-        const sy = (1 + 0.35 * speed) * (1 - 0.45 * floorF);
+        const sy = (1 + 0.175 * speed) * (1 - 0.225 * floorF);
         ctx.beginPath();
         ctx.ellipse(ox + col * cell + cell / 2, oy + yRow * cell + cell / 2, cell * 0.16 / sy, cell * 0.16 * sy, 0, 0, Math.PI * 2);
         ctx.fill();
