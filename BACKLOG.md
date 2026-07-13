@@ -19,9 +19,9 @@
 - [x] Tempo control (hidden/grown-up area?) — grown-up panel: 3s hold in top-left corner opens tempo slider (60–180) + clear-all + done (2026-07-12)
 
 ## Next (M3 candidates — brainstormed 2026-07-12)
-- [ ] Multi-touch: cell toggling is already per-pointer, but finger-bulge tracks a single `ptr` — track all active pointers so two kids can play at once (wall panel WILL have siblings in front of it)
-- [ ] Mirror painting: every tap also places its mirror (L/R or 4-way kaleidoscope) — mirrored pentatonic is always consonant, zero-skill patterns look and sound composed (~15 lines, best fun-per-effort)
-- [ ] Per-layer voices: marimba / soft pluck / bells — makes the dice buttons audible, stops 3 layers fighting for the same sonic space (also eases the limiter-pumping smell)
+- [x] Multi-touch: all active pointers tracked in a Map; membrane bulge follows every finger (2026-07-12)
+- [x] Mirror painting: grown-up panel select — off / left-right echo / kaleidoscope (4-way); partners follow the tapped cell's new state via shared setCell() (2026-07-12)
+- [x] Per-layer voices: marimba / soft pluck / FM glass bells, one PolySynth per layer into the shared limiter (2026-07-12 — NOT heard by human ears yet, see Smells)
 - [ ] Draw mode (real Tenori-on mode): drag paints a trail of dots that play as placed, fade after a few loops — turns the most natural kid gesture (dragging, currently a no-op) into music
 - [ ] Attract mode plays real tunes: ghost patterns kids recognize (Twinkle Twinkle, Frère Jacques) instead of abstract sine/arpeggio — stronger lure to walk up
 - [ ] Attract homage presets (no transcription, evoke don't copy): a "Roygbiv-shaped" Score pattern — sparse dots, lazy rise-fall contour, ~90 BPM BoC warmth — and a sparse Bounce-mode polyrhythm preset (few dots at different heights → interlocking pulses, the Autechre move)
@@ -31,8 +31,8 @@
   - Warmth: Boards of Canada, Mort Garson (Plantasia), Raymond Scott (Soothing Sounds for Baby), Lullatone, Plaid, Sakamoto/YMO, Aphex Twin (Flim, Avril 14th), Squarepusher (Tommib), Autechre (as process: Bounce-mode polyrhythms)
 - [ ] Night palette: after a set hour, dimmer inks + softer voice — practical for a kitchen wall, charming shift
 - [x] Per-layer loop length (the Steve Reich feature): a layer looping at 15 or 17 steps drifts in and out of phase with a 16-step layer, à la Piano Phase / Clapping Music — grown-up panel sliders, kid surface unchanged, faithful to the Tenori-on's per-layer loop points (2026-07-12)
-- [ ] Scale swap (grown-up panel): minor pentatonic / hirajoshi (gamelan) / whole-tone — every option keeps the no-wrong-notes guarantee; one SCALE-array swap
-- [ ] Swing: one grown-up slider delaying off-beat 16ths — music-box → groove
+- [x] Scale swap (grown-up panel): major pentatonic / minor pentatonic / hirajoshi select; colors follow scale degree so the candy palette works for all (2026-07-12; whole-tone dropped — 6 notes doesn't fit the 5-degree color/scale system)
+- [x] Swing: grown-up panel slider 0-50%, Tone.Transport.swing @ 16n (2026-07-12)
 - [ ] Remaining Tenori-on modes via the MODES seam: Push (lit cell sustains while held), Solo (cells sound while touched — theremin for the pre-pattern age group)
 - [ ] The Eno switch: generative mode — app adds/removes one dot every few bars so a left-behind pattern mutates all afternoon; composts with attract mode
 
@@ -43,13 +43,14 @@
 - [x] Idle attract mode: after 2 min untouched + empty grid, ghost places/holds/dissolves preset patterns; any tap evicts it (2026-07-12)
 - [ ] Grown-up mode toggle exposing full depth (more layers, more modes, voices)
 - [ ] Instrument voice selection
-- [ ] Save/load patterns (localStorage first; Firestore only if sharing between devices matters)
+- [x] Save/load patterns: localStorage on every mutation, restored+validated on boot (dots inflate in); Firestore still deferred until sharing between devices matters (2026-07-12)
 - [ ] Per-kid pattern slots (echoes Cast & Type profile idea)
 - [ ] Sound: evaluate faithfulness to original Tenori-on voices — explicitly punted, wall panel doesn't need it
 - [ ] Naming: "Grid Sings" is a working title. Candidates: Lumen, Ripple, ___
 - [ ] Volume strategy for kitchen/wall placement (time-of-day aware? panel hardware volume?)
 
 ## Smells / Watch items
+- FM bell voice (layer 3) volume set to -14 dB by ear-less arithmetic — NOBODY has heard the three voices together; listen and rebalance before the panel goes on a wall.
 - Loudness with 3 dense layers: all layers share one -8 dB synth into the -3 dB limiter; heavy patterns on all three could pump the limiter. Listen on the panel; if it squashes, drop synth volume ~3 dB.
 
 ## Assumptions log
@@ -74,6 +75,9 @@
 - 2026-07-12: Rubber Tier 1 tuning: one damped spring (1 − e^(−5t)·cos(9t), ~17% overshoot) drives everything over 550ms; inflate starts at 40% size; fire squash ±25% anisotropic; finger bulge +12% max with falloff over 2.5 cells. All derived per-frame from timestamps — no physics state, renderer-only change. Squash also applies to OFF cells poked by Bounce-mode floor hits (looks intentional, kept).
 - 2026-07-12: Rubber Tier 3 palette = color by PITCH CLASS, not by row: the 5 pentatonic degrees get fixed candy colors (C strawberry #ff6b81, D mango #ffa94d, E lemon #ffd43b, G mint #3ddc97, A blueberry #5ea8ff), repeating each octave. Same note = same color in every octave and every mode (Bounce colors by column since pitch = column there). Chosen over hue-by-row because a 16-step gradient reads spectrum-analyzer, and pitch-class color is faithful to "the grid is music". Ripple rings inherit the note's color. Glossy sprites re-rendered on resize at device-pixel size; fired cells flash the white sprite.
 - 2026-07-12: Marimba voice = classic Tone.js mallet patch (oscillator partials [1,0,2,0,3], attack 0.001, decay 1.2, sustain 0, release 1.2) on the same PolySynth — options-only change, limiter chain untouched. Longer tails mean more overlapping voices on dense grids; PolySynth's default 32-voice cap silently steals the oldest, which is acceptable. NOT auto-deployed to prod — Matt should listen first (verified programmatically: notes fire at −10 dB peak, no errors, but nobody's actually heard it).
+- 2026-07-12: Persistence schema gridSings.v1: { bpm, swing, scale, mirror, li, layers:[{placed, mode, len}] }, written on every mutation (tiny JSON, no debounce needed), clamped/validated on load so corrupt or stale blobs are ignored. Attract-ghost dots are never saved mid-attract (attract only starts from all-empty, and its cleanup saves the correct empty state). Restored dots get born=now so the pattern inflates in on boot.
+- 2026-07-12: Mirror painting semantics: partners are SET to the tapped cell's new state (not flipped), so re-tapping with mirror on stays consistent; N=16 is even so a cell is never its own mirror. L/R mirror = temporal echo (same pitch later in the loop); kaleidoscope adds the row mirror = inverted melody, always consonant in pentatonic.
+- 2026-07-12: Voice patches picked by construction, not listening: pluck = triangle decay 0.35 @ -9dB, bells = FMSynth harmonicity 8 / modIndex 2 decay 1.6 @ -14dB. Flagged in Smells.
 - 2026-07-12: Per-layer loop length: range 4–16 (grown-up panel sliders), Score mode only — Bounce's loop IS its polyrhythm (period = 16−row) and Random's is its placement sequence, so `len` doesn't touch them. Playhead band follows the ACTIVE layer's own loop; the global `playhead` var was removed in favor of computing `drawStep % A.len` at draw time. Columns beyond the active layer's loop end render at 0.35 alpha (visible but asleep) so the cut point is legible. Dots beyond the loop end are kept, not deleted — shortening then re-lengthening restores them.
 - 2026-07-12: Mobile bugfix — audio unlock moved from pointerdown to pointerup: iOS Safari grants the user activation Web Audio needs on touch END, so `await Tone.start()` in pointerdown hung forever (hint stuck, no transport, no sound). `started` now flips only on success so a failed unlock retries on the next tap. Mobile is a bonus target; the fix also holds for any browser strict about activation.
 - 2026-07-12: Mobile bugfix — control-strip button radius capped at (innerWidth/2 − 60)/9 so all 7 buttons (3 modes, 3 layer dice, ✕) fit one row on narrow screens; at phone width the old bar-derived radius made mode icons bury the 1-dot layer button. Wall panel unaffected (cap only binds below ~1100px width).
