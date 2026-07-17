@@ -286,6 +286,7 @@ function tendGarden() {
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 let cell = 0, gap = 0, ox = 0, oy = 0, bar = 0; // cell size, gap, grid origin, control strip height
+let twoRow = false; // narrow phones stack the control strip into two rows so buttons can stay big
 
 // Candy palette by PITCH CLASS: same note = same color in every octave (C D E G A).
 // Score/Random pitch = row → ci = (N-1-row) % 5; Bounce pitch = column → ci = col % 5.
@@ -319,7 +320,10 @@ function layout() {
   canvas.style.width = innerWidth + 'px';
   canvas.style.height = innerHeight + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  bar = Math.max(64, innerHeight * 0.09); // controls live here, never over the grid
+  // Below ~640px wide, one row can't fit all 10 controls at a touch-friendly size (see btnR),
+  // so stack modes on top and layers+clear below — each row then gets the full width to grow into.
+  twoRow = innerWidth < 640;
+  bar = twoRow ? Math.max(120, innerHeight * 0.18) : Math.max(64, innerHeight * 0.09); // controls live here, never over the grid
   const size = Math.min(innerWidth, innerHeight - bar) * 0.94;
   cell = size / N;
   gap = cell * 0.14;
@@ -352,22 +356,37 @@ checkNight();
 // Clear button: hold ~1s to wipe the grid. Hold-with-progress-ring so a stray tap never wipes a kid's pattern.
 const CLEAR_HOLD_MS = 1000;
 let clearHoldStart = null;
-// All 10 controls share one row: 6 modes left, 3 layers center, ✕ right. On narrow (phone)
-// screens the full radius makes the leftmost modes overlap the centered layer dice, so cap r
-// to what fits (6 modes end at 80+12r; leftmost dice starts at w/2−3r−12 → r ≤ (w/2−92)/15).
-const btnR = () => Math.min(bar * 0.34, (innerWidth / 2 - 96) / 15);
+// All 10 controls share the bottom control strip. On wide screens they fit one row: 6 modes
+// left, 3 layers center, ✕ right, capped so the leftmost modes don't overlap the centered layer
+// dice (6 modes end at 80+12r; leftmost dice starts at w/2−3r−12 → r ≤ (w/2−92)/15). On narrow
+// phones that cap crushes the radius well below a touch target, so twoRow (see layout()) stacks
+// modes on their own row and layers+clear on another — each row spans the full width instead.
+function btnR() {
+  if (twoRow) {
+    const rowH = bar / 2;
+    const rModes = (innerWidth - 40 - 5 * 12) / 12; // 6 mode buttons across the full width
+    const rRest = (innerWidth - 40 - 3 * 12) / 8;    // 3 layer buttons + clear across the full width
+    return Math.min(rowH * 0.6, rModes, rRest);
+  }
+  return Math.min(bar * 0.34, (innerWidth / 2 - 96) / 15);
+}
+const topRowY = () => innerHeight - bar * 0.75;
+const botRowY = () => innerHeight - bar * 0.25;
 function clearButton() {
   const r = btnR();
+  if (twoRow) return { x: 20 + r + 3 * (r * 2 + 12), y: botRowY(), r };
   return { x: innerWidth - r - 20, y: innerHeight - bar / 2, r };
 }
-// Mode switcher: three small buttons, bottom-left of the control strip (sets the ACTIVE layer's mode)
+// Mode switcher: bottom-left of the control strip (sets the ACTIVE layer's mode)
 function modeButtons() {
   const r = btnR();
-  return ['score', 'bounce', 'random', 'draw', 'push', 'solo'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y: innerHeight - bar / 2, r }));
+  const y = twoRow ? topRowY() : innerHeight - bar / 2;
+  return ['score', 'bounce', 'random', 'draw', 'push', 'solo'].map((m, i) => ({ m, x: 20 + r + i * (r * 2 + 12), y, r }));
 }
-// Layer switcher: dice-dot buttons, bottom-center — you edit one layer, all of them sound
+// Layer switcher: dice-dot buttons — you edit one layer, all of them sound
 function layerButtons() {
   const r = btnR();
+  if (twoRow) return layers.map((_, i) => ({ i, x: 20 + r + i * (r * 2 + 12), y: botRowY(), r }));
   return layers.map((_, i) => ({ i, x: innerWidth / 2 + (i - 1) * (r * 2 + 12), y: innerHeight - bar / 2, r }));
 }
 
