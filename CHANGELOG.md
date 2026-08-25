@@ -11,11 +11,23 @@ what shipped, what's deferred, and the dated assumptions log.
 
 ### Changed
 
+- **The grown-up panel opens from a gear icon**, in the top-left corner where the
+  3-second hold used to be. Tap to open, tap again (or *done*) to close — no hidden
+  gesture. The gear is small and low-contrast, in the dead space beside the grid,
+  and sizes itself into whichever margin the centered grid leaves so it never sits
+  on a cell.
+
 - **Idle attract mode is now off by default.** Left alone, the panel stays silent.
   A new *attract mode* on/off select in the grown-up panel switches the ghost back
   on; the choice is saved to `localStorage` with the rest of the panel settings.
   Saved settings written before this change come back with attract off. Turning it
   off while the ghost is mid-pattern hands the grid back immediately.
+
+### Fixed
+
+- The grown-up panel no longer hangs off the edge of a narrow screen — its
+  `max-width` sized the content box, so 68px of padding pushed it to 427px wide on
+  a 390px phone, with its left edge off-screen.
 
 ## [1.0.0] — 2026-08-20
 

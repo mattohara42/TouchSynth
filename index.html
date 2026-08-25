@@ -12,9 +12,10 @@
     color: #9b8bb0; font: 300 clamp(20px, 3vw, 34px) system-ui, sans-serif;
     letter-spacing: 0.08em; pointer-events: none; transition: opacity 0.8s;
   }
-  /* Grown-up panel: hidden settings card, opened by a 3s hold kids won't discover */
+  /* Grown-up panel: settings card, opened by the gear in the top-left corner */
   #panel {
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    box-sizing: border-box; /* padding inside max-width, or the card hangs off a phone screen */
     display: none; flex-direction: column; gap: 22px;
     background: #2b1b3d; border-radius: 24px; padding: 30px 34px;
     color: #d8c8e8; font: 500 clamp(16px, 2vw, 20px) system-ui, sans-serif;
@@ -383,6 +384,16 @@ function clearButton() {
   if (twoRow) return { x: 20 + r + 3 * (r * 2 + 12), y: botRowY(), r };
   return { x: innerWidth - r - 20, y: innerHeight - bar / 2, r };
 }
+// Grown-up gear: top-left corner, outside the control strip and clear of the grid — layout() centers
+// the grid, so on a wide screen the corner is left of it and on a tall one it's above it. Small and
+// low-contrast: visible to a grown-up looking for it, not a target that invites a kid's finger.
+function gearButton() {
+  // Fit the wider of the two margins the centered grid leaves (ox to its left, oy above it), so the
+  // gear never lands on a cell. r is the full 20 on every real target — the wall panel, desktops,
+  // phones and tablets all leave one generous margin; only a near-square window shrinks it.
+  const r = Math.max(11, Math.min(20, (Math.max(ox, oy) - 12) / 2));
+  return { x: 12 + r, y: 12 + r, r };
+}
 // Mode switcher: bottom-left of the control strip (sets the ACTIVE layer's mode)
 function modeButtons() {
   const r = btnR();
@@ -704,6 +715,28 @@ function draw(now) {
     ctx.restore();
   }
 
+  // Grown-up gear — deliberately quiet: it's for the adult in the room, not part of the kid surface
+  const gear = gearButton();
+  const gk = btnScale('gear', now);
+  ctx.save(); ctx.translate(gear.x, gear.y); ctx.scale(gk, gk); ctx.translate(-gear.x, -gear.y);
+  ctx.fillStyle = 'rgba(190,160,215,0.12)';
+  ctx.beginPath(); ctx.arc(gear.x, gear.y, gear.r, 0, Math.PI * 2); ctx.fill();
+  // A cog silhouette: 8 teeth stepped between an outer and inner radius, hub punched back out
+  ctx.fillStyle = 'rgba(200,180,215,0.55)';
+  const TEETH = 8, step = (Math.PI * 2) / TEETH, rOut = gear.r * 0.78, rIn = gear.r * 0.55;
+  ctx.beginPath();
+  for (let t = 0; t < TEETH; t++) {
+    const a = t * step;
+    for (const [da, rad] of [[-0.32, rIn], [-0.17, rOut], [0.17, rOut], [0.32, rIn]]) {
+      const ang = a + da * step;
+      ctx.lineTo(gear.x + Math.cos(ang) * rad, gear.y + Math.sin(ang) * rad);
+    }
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.globalCompositeOperation = 'destination-out'; // hub hole, so the cog reads at 40px
+  ctx.beginPath(); ctx.arc(gear.x, gear.y, gear.r * 0.28, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
   // Clear button + hold progress ring
   const btn = clearButton();
   const holding = clearHoldStart !== null;
@@ -805,8 +838,10 @@ canvas.addEventListener('pointerdown', (e) => {
   lastTouch = performance.now();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (attract) stopAttract(); // hand the grid to the kid instantly
-  if (e.clientX < 90 && e.clientY < 90) { // dead space above the grid — kids have no reason to hold here
-    panelHold = setTimeout(() => { panel.style.display = 'flex'; }, 3000);
+  const gear = gearButton();
+  if (Math.hypot(e.clientX - gear.x, e.clientY - gear.y) <= gear.r + 6) {
+    panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex'; // tap again to put it away
+    btnPop = { id: 'gear', at: performance.now() };
     return;
   }
   const btn = clearButton();
@@ -870,7 +905,7 @@ canvas.addEventListener('pointermove', (e) => {
   }
 });
 addEventListener('pointerup', async (e) => {
-  clearHoldStart = null; pushUp(e.pointerId); pointers.delete(e.pointerId); clearTimeout(panelHold);
+  clearHoldStart = null; pushUp(e.pointerId); pointers.delete(e.pointerId);
   if (!started) {
     // iOS Safari only grants the audio-unlock user activation on touch END, not start —
     // resume() called from pointerdown hangs forever there. Unlock here, flag on success
@@ -883,11 +918,10 @@ addEventListener('pointerup', async (e) => {
     } catch (err) { console.warn('audio unlock failed, will retry', err); }
   }
 });
-addEventListener('pointercancel', (e) => { clearHoldStart = null; pushUp(e.pointerId); pointers.delete(e.pointerId); clearTimeout(panelHold); });
+addEventListener('pointercancel', (e) => { clearHoldStart = null; pushUp(e.pointerId); pointers.delete(e.pointerId); });
 
-// ---------- Grown-up panel (opened by a 3s corner hold, above) ----------
+// ---------- Grown-up panel (opened by the corner gear, above) ----------
 const panel = document.getElementById('panel');
-let panelHold = null;
 const bpmSlider = document.getElementById('bpm');
 bpmSlider.addEventListener('input', () => {
   Tone.Transport.bpm.value = +bpmSlider.value;

@@ -42,11 +42,12 @@ ever destroyed).
 
 ---
 
-## The grown-up panel (hidden settings)
+## The grown-up panel (settings)
 
-Kids never need it and won't find it: **hold a finger still for 3 seconds in the
-top-left corner** (a small dead zone above the grid). The grid keeps playing around
-the card. Inside:
+**Tap the gear in the top-left corner.** Tap it again — or *done* — to put the card
+away. It sits in the dead space beside the grid, small and quiet: a grown-up looking
+for settings finds it, and it isn't a target that invites a kid's finger. The grid
+keeps playing around the card. Inside:
 
 - **Tempo** — 60–180 BPM
 - **Per-layer loop length** — 4–16 steps each. Set layers to unequal lengths (say 15
