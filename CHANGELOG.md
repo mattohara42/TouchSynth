@@ -7,6 +7,16 @@ This project has no build step and deploys manually to
 snapshots of the shipped instrument; see `BACKLOG.md` for the blow-by-blow of
 what shipped, what's deferred, and the dated assumptions log.
 
+## [Unreleased]
+
+### Changed
+
+- **Idle attract mode is now off by default.** Left alone, the panel stays silent.
+  A new *attract mode* on/off select in the grown-up panel switches the ghost back
+  on; the choice is saved to `localStorage` with the rest of the panel settings.
+  Saved settings written before this change come back with attract off. Turning it
+  off while the ghost is mid-pattern hands the grid back immediately.
+
 ## [1.0.0] — 2026-08-20
 
 First tagged release. Covers milestones M1–M3, all live in production. A
