@@ -56,6 +56,8 @@ the card. Inside:
 - **Mirror painting** — off / left–right echo / kaleidoscope
 - **Garden** — the Brian Eno switch: a left-behind pattern slowly grows and prunes
   itself, one dot every 8 bars
+- **Attract mode** — off by default; switch it on and the panel plays by itself when
+  left alone
 - **Clear all layers**, and a *"who makes music like this?"* teaching card with a QR
   code linking to a listening page ([artists.html](./artists.html))
 
@@ -67,8 +69,10 @@ the card. Inside:
   glass bells down an octave (layer 3), each its own layer.
 - **Night palette** — from 20:00 to 07:00 the colours dim, the background darkens, and
   the master level drops, for a kitchen wall that shouldn't shout after bedtime.
-- **Idle attract mode** — after two minutes untouched *with an empty grid*, a ghost
-  plays gentle preset patterns to lure someone over. Any tap hands it straight back.
+- **Idle attract mode** *(off by default)* — switch it on in the grown-up panel and,
+  after two minutes untouched *with an empty grid*, a ghost plays gentle preset
+  patterns to lure someone over. Any tap hands it straight back. Left off, a panel
+  nobody is touching stays silent.
 - **It remembers** — every change is saved to `localStorage`, so a kiosk reboot brings
   the pattern (and all panel settings) back.
 - **Rubber/gummy feel** — nothing snaps; cells inflate, squash and wobble, ripples push

@@ -81,6 +81,12 @@
       <option value="on">on — a dot grows or fades every 8 bars</option>
     </select>
   </label>
+  <label><span>attract mode — plays by itself when left alone</span>
+    <select id="attractSel">
+      <option value="off">off</option>
+      <option value="on">on — a ghost plays presets after 2 min untouched</option>
+    </select>
+  </label>
   <button id="clearAll">clear all layers</button>
   <div id="teach">
     <b>who makes music like this?</b><br>
@@ -730,7 +736,9 @@ function draw(now) {
 }
 requestAnimationFrame(draw);
 
-// ---------- Idle attract: after 2 min untouched with an empty grid, a ghost plays gentle presets ----------
+// ---------- Idle attract: OFF by default; when switched on in the panel, after 2 min untouched
+// with an empty grid a ghost plays gentle presets. A silent panel is the default a room deserves. ----------
+let attractOn = false; // grown-up panel setting; never on unless someone asked for it
 const IDLE_MS = 2 * 60 * 1000;
 const ATTRACT_TICK_MS = 900;
 const ATTRACT_HOLD_MS = 30000;
@@ -787,7 +795,7 @@ function stopAttract() {
 }
 
 setInterval(() => {
-  if (started && !attract && layers.every((L) => L.placed.length === 0) && performance.now() - lastTouch >= IDLE_MS) startAttract();
+  if (attractOn && started && !attract && layers.every((L) => L.placed.length === 0) && performance.now() - lastTouch >= IDLE_MS) startAttract();
 }, 1000);
 
 // ---------- Input ----------
@@ -906,6 +914,12 @@ mirrorSel.addEventListener('change', () => { mirror = mirrorSel.value; save(); }
 let garden = false;
 const gardenSel = document.getElementById('gardenSel');
 gardenSel.addEventListener('change', () => { garden = gardenSel.value === 'on'; save(); });
+const attractSel = document.getElementById('attractSel');
+attractSel.addEventListener('change', () => {
+  attractOn = attractSel.value === 'on';
+  if (!attractOn && attract) stopAttract(); // switching off mid-ghost hands the grid back at once
+  save();
+});
 document.getElementById('clearAll').addEventListener('click', () => layers.forEach((L) => clearGrid(L)));
 document.getElementById('panelClose').addEventListener('click', () => { panel.style.display = 'none'; });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -914,7 +928,7 @@ document.addEventListener('contextmenu', (e) => e.preventDefault());
 const SAVE_KEY = 'gridSings.v1';
 function save() {
   localStorage.setItem(SAVE_KEY, JSON.stringify({
-    bpm: Tone.Transport.bpm.value, swing: Tone.Transport.swing, scale: scaleName, mirror, garden, li,
+    bpm: Tone.Transport.bpm.value, swing: Tone.Transport.swing, scale: scaleName, mirror, garden, attractOn, li,
     layers: layers.map((L) => ({ placed: L.placed, mode: L.mode, len: L.len })),
   }));
 }
@@ -947,6 +961,7 @@ function save() {
   if (SCALES[d.scale]) { setScale(d.scale); scaleSel.value = d.scale; }
   if (['off', 'lr', 'kaleido'].includes(d.mirror)) { mirror = d.mirror; mirrorSel.value = d.mirror; }
   if (d.garden === true) { garden = true; gardenSel.value = 'on'; }
+  if (d.attractOn === true) { attractOn = true; attractSel.value = 'on'; } // absent/garbage = off
 })();
 
 // Self-check: scale mapping sanity (visible in console only, costs nothing)
