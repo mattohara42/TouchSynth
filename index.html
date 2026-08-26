@@ -363,8 +363,8 @@ checkNight();
 // Clear button: hold ~1s to wipe the grid. Hold-with-progress-ring so a stray tap never wipes a kid's pattern.
 const CLEAR_HOLD_MS = 1000;
 let clearHoldStart = null;
-// All 10 controls share the bottom control strip. On wide screens they fit one row: 6 modes
-// left, 3 layers center, ✕ right, capped so the leftmost modes don't overlap the centered layer
+// All 11 controls share the bottom control strip. On wide screens they fit one row: 6 modes
+// left, 3 layers center, play/pause + ✕ right, capped so the leftmost modes don't overlap the centered layer
 // dice (6 modes end at 80+12r; leftmost dice starts at w/2−3r−12 → r ≤ (w/2−92)/15). On narrow
 // phones that cap crushes the radius well below a touch target, so twoRow (see layout()) stacks
 // modes on their own row and layers+clear on another — each row spans the full width instead.
@@ -372,7 +372,7 @@ function btnR() {
   if (twoRow) {
     const rowH = bar / 2;
     const rModes = (innerWidth - 40 - 5 * 12) / 12; // 6 mode buttons across the full width
-    const rRest = (innerWidth - 40 - 3 * 12) / 8;    // 3 layer buttons + clear across the full width
+    const rRest = (innerWidth - 40 - 4 * 12) / 10;   // 3 layer buttons + play/pause + clear across the full width
     return Math.min(rowH * 0.6, rModes, rRest);
   }
   return Math.min(bar * 0.34, (innerWidth / 2 - 96) / 15);
@@ -381,17 +381,26 @@ const topRowY = () => innerHeight - bar * 0.75;
 const botRowY = () => innerHeight - bar * 0.25;
 function clearButton() {
   const r = btnR();
-  if (twoRow) return { x: 20 + r + 3 * (r * 2 + 12), y: botRowY(), r };
+  if (twoRow) return { x: 20 + r + 4 * (r * 2 + 12), y: botRowY(), r };
   return { x: innerWidth - r - 20, y: innerHeight - bar / 2, r };
 }
+// Play/pause: the transport clock, the one control that stops the panel singing by itself.
+// Sits beside ✕ rather than with the modes — it acts on the whole instrument, not on a layer.
+// Deliberately NOT persisted: a kiosk that reboots should come back playing, not silently paused.
+let playing = true;
+function transportButton() {
+  const r = btnR();
+  if (twoRow) return { x: 20 + r + 3 * (r * 2 + 12), y: botRowY(), r };
+  return { x: innerWidth - 3 * r - 32, y: innerHeight - bar / 2, r };
+}
 // Grown-up gear: top-left corner, outside the control strip and clear of the grid — layout() centers
-// the grid, so on a wide screen the corner is left of it and on a tall one it's above it. Small and
-// low-contrast: visible to a grown-up looking for it, not a target that invites a kid's finger.
+// the grid, so on a wide screen the corner is left of it and on a tall one it's above it. Sized and
+// lit like the strip buttons: settings are a public control, not a secret (Matt's call 2026-08-26).
 function gearButton() {
   // Fit the wider of the two margins the centered grid leaves (ox to its left, oy above it), so the
-  // gear never lands on a cell. r is the full 20 on every real target — the wall panel, desktops,
+  // gear never lands on a cell. r is the full 28 on every real target — the wall panel, desktops,
   // phones and tablets all leave one generous margin; only a near-square window shrinks it.
-  const r = Math.max(11, Math.min(20, (Math.max(ox, oy) - 12) / 2));
+  const r = Math.max(14, Math.min(28, (Math.max(ox, oy) - 12) / 2));
   return { x: 12 + r, y: 12 + r, r };
 }
 // Mode switcher: bottom-left of the control strip (sets the ACTIVE layer's mode)
@@ -648,12 +657,12 @@ function draw(now) {
     }
     const ink = active ? 'rgba(255,245,250,0.9)' : 'rgba(200,180,215,0.55)';
     ctx.fillStyle = ink; ctx.strokeStyle = ink;
-    if (b.m === 'score') { // play triangle
-      ctx.beginPath();
-      ctx.moveTo(b.x - b.r * 0.28, b.y - b.r * 0.38);
-      ctx.lineTo(b.x + b.r * 0.42, b.y);
-      ctx.lineTo(b.x - b.r * 0.28, b.y + b.r * 0.38);
-      ctx.closePath(); ctx.fill();
+    if (b.m === 'score') { // a playhead sweeping across a row of cells (▶ now means transport)
+      ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(b.x - b.r * 0.25, b.y - b.r * 0.5); ctx.lineTo(b.x - b.r * 0.25, b.y + b.r * 0.5); ctx.stroke();
+      for (const dx of [-0.52, 0.02, 0.45]) {
+        ctx.beginPath(); ctx.arc(b.x + dx * b.r, b.y, b.r * 0.14, 0, Math.PI * 2); ctx.fill();
+      }
     } else if (b.m === 'bounce') { // ball over a floor line
       ctx.beginPath(); ctx.arc(b.x, b.y - b.r * 0.15, b.r * 0.2, 0, Math.PI * 2); ctx.fill();
       ctx.lineWidth = 2.5; ctx.lineCap = 'round';
@@ -715,14 +724,14 @@ function draw(now) {
     ctx.restore();
   }
 
-  // Grown-up gear — deliberately quiet: it's for the adult in the room, not part of the kid surface
+  // Grown-up gear — as bright as the strip buttons so anyone can find the settings
   const gear = gearButton();
   const gk = btnScale('gear', now);
   ctx.save(); ctx.translate(gear.x, gear.y); ctx.scale(gk, gk); ctx.translate(-gear.x, -gear.y);
-  ctx.fillStyle = 'rgba(190,160,215,0.12)';
+  ctx.fillStyle = 'rgba(190,160,215,0.22)';
   ctx.beginPath(); ctx.arc(gear.x, gear.y, gear.r, 0, Math.PI * 2); ctx.fill();
   // A cog silhouette: 8 teeth stepped between an outer and inner radius, hub punched back out
-  ctx.fillStyle = 'rgba(200,180,215,0.55)';
+  ctx.fillStyle = 'rgba(235,225,245,0.85)';
   const TEETH = 8, step = (Math.PI * 2) / TEETH, rOut = gear.r * 0.78, rIn = gear.r * 0.55;
   ctx.beginPath();
   for (let t = 0; t < TEETH; t++) {
@@ -735,6 +744,30 @@ function draw(now) {
   ctx.closePath(); ctx.fill();
   ctx.globalCompositeOperation = 'destination-out'; // hub hole, so the cog reads at 40px
   ctx.beginPath(); ctx.arc(gear.x, gear.y, gear.r * 0.28, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // Play/pause — paused wears the active pink so a silent panel says why, and how to fix it
+  const tb = transportButton();
+  const tk = btnScale('transport', now);
+  ctx.save(); ctx.translate(tb.x, tb.y); ctx.scale(tk, tk); ctx.translate(-tb.x, -tb.y);
+  ctx.fillStyle = playing ? 'rgba(190,160,215,0.12)' : 'rgba(255,140,190,0.22)';
+  ctx.beginPath(); ctx.arc(tb.x, tb.y, tb.r, 0, Math.PI * 2); ctx.fill();
+  if (!playing) {
+    ctx.strokeStyle = 'rgba(255,175,210,0.8)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(tb.x, tb.y, tb.r, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.fillStyle = playing ? 'rgba(200,180,215,0.55)' : 'rgba(255,245,250,0.9)';
+  if (playing) { // two bars
+    const bw = tb.r * 0.16, bh = tb.r * 0.42;
+    ctx.beginPath(); ctx.roundRect(tb.x - tb.r * 0.34, tb.y - bh, bw * 2, bh * 2, bw * 0.6); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(tb.x + tb.r * 0.02, tb.y - bh, bw * 2, bh * 2, bw * 0.6); ctx.fill();
+  } else { // play triangle
+    ctx.beginPath();
+    ctx.moveTo(tb.x - tb.r * 0.28, tb.y - tb.r * 0.38);
+    ctx.lineTo(tb.x + tb.r * 0.42, tb.y);
+    ctx.lineTo(tb.x - tb.r * 0.28, tb.y + tb.r * 0.38);
+    ctx.closePath(); ctx.fill();
+  }
   ctx.restore();
 
   // Clear button + hold progress ring
@@ -844,6 +877,15 @@ canvas.addEventListener('pointerdown', (e) => {
     btnPop = { id: 'gear', at: performance.now() };
     return;
   }
+  const tb = transportButton();
+  if (Math.hypot(e.clientX - tb.x, e.clientY - tb.y) <= tb.r + 6) {
+    playing = !playing;
+    // Before the first tap unlocks audio there is no transport to pause yet — the unlock
+    // in pointerup reads `playing` and only starts the clock if this button says so.
+    if (started) { if (playing) Tone.Transport.start(); else Tone.Transport.pause(); }
+    btnPop = { id: 'transport', at: performance.now() };
+    return;
+  }
   const btn = clearButton();
   if (Math.hypot(e.clientX - btn.x, e.clientY - btn.y) <= btn.r + 6) {
     clearHoldStart = performance.now();
@@ -912,7 +954,7 @@ addEventListener('pointerup', async (e) => {
     // so a failed attempt retries on the next tap.
     try {
       await Tone.start();
-      Tone.Transport.start();
+      if (playing) Tone.Transport.start();
       started = true;
       document.getElementById('hint').style.opacity = '0';
     } catch (err) { console.warn('audio unlock failed, will retry', err); }

@@ -20,6 +20,10 @@ the bottom.
 - **Mode buttons** (bottom-left, 6 of them) change what the grid *does* — see below.
 - **Layer dice** (bottom-centre, 1/2/3 dots) pick which layer you're editing. All
   three layers sound at once; each has its own voice, mode, and loop length.
+- **Play/pause** (bottom-right, left of the ✕) — stops and restarts the clock. Paused,
+  it turns pink and shows ▶ so a quiet panel explains itself. The pattern is kept, so
+  play picks up where it stopped. Push and Solo still sound while paused — the finger
+  is the sequencer in those.
 - **Clear ✕** (bottom-right) — *hold* for about a second (a ring fills) to wipe the
   layer you're on. Holding, not tapping, so a stray finger never erases a pattern.
 
@@ -27,7 +31,7 @@ the bottom.
 
 | Mode | Icon | What it does | Pitch from |
 |------|------|--------------|------------|
-| **Score** | ▶ | A playhead sweeps left→right on a loop; lit cells in the current column sing. | row |
+| **Score** | playhead over dots | A playhead sweeps left→right on a loop; lit cells in the current column sing. | row |
 | **Bounce** | ball over floor | Each lit cell drops a ball that strikes the floor every `16 − row` steps — higher = slower. Guaranteed polyrhythms. | column |
 | **Random** | zig-zag | A light hops dot-to-dot in the order you placed them, one hop per eighth note. | row |
 | **Draw** | squiggle | Drag to paint a trail that plays like Score and evaporates after a few loops. | row |
@@ -45,9 +49,9 @@ ever destroyed).
 ## The grown-up panel (settings)
 
 **Tap the gear in the top-left corner.** Tap it again — or *done* — to put the card
-away. It sits in the dead space beside the grid, small and quiet: a grown-up looking
-for settings finds it, and it isn't a target that invites a kid's finger. The grid
-keeps playing around the card. Inside:
+away. It sits in the dead space beside the grid, sized and lit like the buttons on the
+strip: settings are a public control here, not a secret handshake. Kids will find it;
+that's the accepted cost of not hiding it. The grid keeps playing around the card. Inside:
 
 - **Tempo** — 60–180 BPM
 - **Per-layer loop length** — 4–16 steps each. Set layers to unequal lengths (say 15
