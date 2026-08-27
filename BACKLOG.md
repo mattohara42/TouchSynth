@@ -51,34 +51,60 @@
 - [ ] Naming: "Grid Sings" is a working title. Candidates: Lumen, Ripple, ___
 - [ ] Volume strategy for kitchen/wall placement (time-of-day aware? panel hardware volume?)
 
-## Bugs found by the test suite (2026-08-27)
+## Bugs found by the test suite (2026-08-27) — ALL FIXED
 
-Three real defects the suite turned up. None is fixed here — this pass was tests only, and
-the working rule is to surface rather than silently touch code. The first two are marked
-`todo` in `test/persistence.test.js`, the third in `test/layout.test.js`, so they're
-reported on every run without failing it. Each turns green the moment it's fixed.
+Three defects the suite turned up, all fixed the same day (Matt: "fix all three"). The
+`todo` tests that documented them are now ordinary passing tests.
 
-- **A `null` entry in the saved `layers` array stops the app booting.** `load()` does
-  `if (MODES[s.mode])` before checking that `s` is an object, so `{"layers":[null]}` in
-  `localStorage` throws a `TypeError` during script evaluation — the whole instrument
-  never starts, and the kiosk shows a blank screen on every reboot until storage is
-  cleared by hand. The load path explicitly calls localStorage "a trust boundary", and
-  this is the one input that gets through it. Fix is a guard: `if (!s || typeof s !== 'object') return;`
-  Severity: high for the wall-panel target (unrecoverable without a keyboard).
-- **Inherited `Object.prototype` keys pass the mode whitelist.** `MODES[s.mode]` is truthy
-  for `"toString"`, `"constructor"`, `"valueOf"` and friends, so a poisoned save sets a
-  layer to a mode that isn't one. The layer then renders normally but never sounds, and no
-  mode button lights up — a silently dead layer with no way to tell why. Fix:
-  `Object.hasOwn(MODES, s.mode)`. Severity: low (needs hand-edited storage), but it's the
-  same guard, two lines apart.
-- **Touch targets fall below 44px on screens 640–852px wide.** `twoRow` kicks in below
-  640px, but by `btnR()`'s own arithmetic the one-row strip doesn't reach a 44px target
-  until 852px. So iPad portrait (768px) gets 38.4px buttons and phone landscape (844px)
-  gets 43.5px — while a 390px phone, which *does* stack, gets 48.3px. The narrower screen
-  has the bigger buttons. This is the tablet-portrait gap the 2026-07-17 assumption
-  knowingly deferred; the suite now puts a number on the band and on where the threshold
-  would have to move (640 → 852). Fix is one constant, but it changes the layout on real
-  tablets, so it's Matt's call rather than a drive-by.
+- ~~**A `null` entry in the saved `layers` array stops the app booting.**~~ FIXED: `load()`
+  did `if (MODES[s.mode])` before checking that `s` was an object, so `{"layers":[null]}` in
+  `localStorage` threw a `TypeError` during script evaluation — the instrument never started,
+  and the kiosk showed a blank screen on every reboot until storage was cleared by hand.
+  Guarded with `if (!s || typeof s !== 'object') return;`, which skips that layer to its
+  defaults and lets the rest of the save load normally.
+- ~~**Inherited `Object.prototype` keys pass the mode whitelist.**~~ FIXED: `MODES[s.mode]`
+  was truthy for `"toString"`, `"constructor"`, `"valueOf"` and friends, so a poisoned save
+  set a layer to a mode that isn't one — it rendered normally but never sounded, with no mode
+  button lit to explain why. Now `Object.hasOwn(MODES, s.mode)`.
+- ~~**Touch targets fall below 44px on screens 640–852px wide.**~~ FIXED: `twoRow` kicked in
+  below 640px, but by `btnR()`'s own arithmetic the one-row strip didn't reach a 44px target
+  until 852px, so iPad portrait got 38.4px buttons while a 390px phone got 48.3px — the
+  narrower screen had the bigger buttons. Threshold moved 640 → 852. This is the
+  tablet-portrait gap the 2026-07-17 assumption knowingly deferred.
+
+Moving that threshold exposed two more, both fixed in the same pass because the threshold
+change would otherwise have shipped them:
+
+- **The two-row radius cap allowed the rows to overlap.** `btnR()` capped the stacked radius
+  at `rowH * 0.6` = `bar * 0.3`, but the two row centres are only `bar / 2` apart and the
+  bottom row's centre sits `bar / 4` above the screen edge — so any radius over `bar / 4`
+  overlaps the row above AND hangs off the bottom. It never bit before because `twoRow` only
+  ran on short phones, where the width terms bound first; on a 768×1024 tablet the height
+  term binds and the strip broke. Now `rowH * 0.45`.
+- **The one-row bar floor was 2px too short.** `bar = max(64, innerHeight * 0.09)` with the
+  radius capped at `bar * 0.34` tops out at r = 21.8 on any screen under ~711px tall, missing
+  44px by half a pixel. Floor raised 64 → 66.
+
+Net effect on real targets — the wall panel, desktop, tablet landscape and phone portrait
+layouts are **completely unchanged**:
+
+| Screen | Grid before → after | Buttons before → after |
+|---|---|---|
+| wall panel 1920×1080 | 924 → 924 | 66.1px → 66.1px |
+| desktop 1440×900 | 770 → 770 | 55.1px → 55.1px |
+| tablet landscape 1024×768 | 657 → 657 | 47.0px → 47.0px |
+| tablet portrait 768×1024 | 722 → 722 | 38.4px → **82.9px** |
+| near square 700×700 | 598 → 540 | 33.9px → 56.7px |
+| phone landscape 844×390 | 306 → 254 | 43.5px → 54.0px |
+| phone 390×844 | 367 → 367 | 48.3px → 48.3px |
+
+Two screens trade grid area for finger size: near-square windows (a dev-only shape) and
+phone landscape, which loses ~17% of its grid. Tablet portrait more than doubles its buttons
+at **zero** grid cost, because width was already the binding constraint there.
+
+Known and deliberate: below 375px wide the layout runs out of room — six mode buttons at
+44px plus gaps and margins need 364px — so buttons shrink rather than overflow. Pinned by a
+test so a future rework makes that a choice rather than an accident.
 
 ## Smells / Watch items
 - `paintCell` only stamps an expiry when `setCell` actually flips the cell, so dragging back over a Draw dot that's already lit does NOT refresh its life — the trail dies from where it was first painted, not from the last time the finger crossed it. Barely visible at 4 loops; note it in case Draw ever gets a longer life. Covered as current behaviour in `test/state.test.js`.
@@ -88,6 +114,7 @@ reported on every run without failing it. Each turns green the moment it's fixed
 
 ## Assumptions log
 - (Claude Code: when proceeding unattended on an ambiguous decision, record it here with date + rationale)
+- 2026-08-27: Fixed all three defects the test suite found (Matt: "fix all three"), plus two more that the third fix exposed. The interesting one is the chain: moving `twoRow` from 640 → 852px put tall screens on the stacked path for the first time, and the stacked path had a latent bug — `btnR()`'s `rowH * 0.6` cap (= `bar * 0.3`) exceeds the `bar / 4` that the row spacing and the bottom margin both actually allow. On the short phones `twoRow` used to serve, the width terms always bound first, so it never showed; on a 768×1024 tablet the height term binds and the two rows overlapped with the bottom one off-screen. Fixed to `rowH * 0.45`. Then a second miss: the one-row `bar` floor of 64px caps the radius at 21.8 (`bar * 0.34`), half a pixel under a 44px target on any screen shorter than ~711px, so the floor went 64 → 66. Both were shipped as part of the threshold change rather than deferred, because the threshold change alone would have introduced the first one. Deliberately NOT fixed: sub-375px screens, where six 44px mode buttons plus gaps and margins need 364px of width and simply do not fit — buttons shrink rather than overflow, and a test now pins that so a future strip rework treats it as a decision. The layout cost is recorded in the table above; the honest part is that phone landscape loses ~17% of its grid to gain 10px of button, while tablet portrait more than doubles its buttons for free. Wall panel, desktop, tablet landscape and phone portrait are untouched. All five changes were verified by reverting each one individually and confirming the suite goes red.
 - 2026-08-27: Test suite added (187 tests, 0 dependencies, no build step) using Node's built-in `node --test` and a `vm` sandbox that boots `index.html`'s inline script against a fake browser and a fake Tone.js. Three approaches were on the table and the choice matters, so: (a) extract the app into ES modules and unit-test those — rejected, it breaks "single index.html, split into modules only when it earns it", and the split would be driven by testability rather than by the code asking for it; (b) drive a real browser with Playwright — rejected, it needs the Tone.js CDN at test time (so the suite goes red when the network does), it can't control `performance.now()` or the transport clock, and every timing assertion becomes a flake; (c) the vm sandbox — chosen, because it leaves the shipping file completely untouched, runs in under a second, and makes time, touch, audio and storage all deterministic inputs the test sets. The cost, recorded honestly: the harness fakes Tone.js and the canvas, so the suite proves the app asks for the right notes at the right times, NOT that they sound right — mix, latency and real audio behaviour on the panel remain ear-and-hardware questions, exactly as the Smells list already assumes. Internals are reached through an epilogue appended at load that exposes the script's lexical bindings via getters; `test/smoke.test.js` asserts the extracted source is verbatim from `index.html`, so the suite can't quietly stop testing the real thing. Suite was mutation-checked against eight deliberately injected bugs (inverted pitch mapping, uncapped ripple pool, missing note release, dropped BPM clamp, leaked pointers, and each `save()` call removed in turn) — all eight were caught, and the two that initially weren't led to the extra persistence assertions in `test/input.test.js`. Three known defects it found are logged under "Bugs found by the test suite" and left unfixed as `todo` tests: this pass was tests only.
 - 2026-08-26: Play/pause added to the control strip (11th control), sitting beside ✕ on the right rather than with the modes — it acts on the whole instrument, not on the active layer. Matt's report was "the Play button doesn't seem to do anything": that ▶ was the Score MODE button, and tapping it while already in Score is correctly a no-op, so the icon was writing a cheque the button couldn't cash. Two fixes, both Matt's call in chat: a real transport toggle (Tone.Transport.start/pause — pause, not stop, so the pattern picks up where it left off; the playhead and bounce balls freeze on their own because both interpolators already clamp at 1), and Score re-iconed to a playhead sweeping a row of dots so ▶ means exactly one thing on the strip. Paused wears the active-pink fill + ring so a silent panel shows why and how to fix it. Deliberately NOT persisted to localStorage: a kiosk that reboots should come back playing, not mysteriously silent. Narrow-phone bottom row now carries 5 buttons (3 layers + play/pause + ✕), so btnR's rRest divisor went 8 → 10.
 - 2026-08-26: Gear made bigger and brighter (r cap 20 → 28, floor 11 → 14; fill 0.12 → 0.22, ink 0.55 → 0.85) — Matt asked for adult mode to be public rather than hidden, which reverses the 2026-08-25 "deliberately quiet" call above. Kids finding it is the accepted, explicit cost. Geometry rule is unchanged: r still fits the wider grid margin, so the gear never lands on a cell.
