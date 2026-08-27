@@ -45,3 +45,7 @@ Modes and layers arrive later by extending these seams, not by rewriting them.
 - Flag design decisions explicitly rather than deciding silently.
 - Maintain BACKLOG.md discipline: every deferral, idea, and smell gets written down.
 - **Merge without asking** (standing authorization, 2026-08-25): push work to a branch, open a PR, and merge it into `main` yourself — no approval round-trip for the commit or the merge. Still open the PR (it's the record of what changed and why) and still verify before pushing; "don't ask" is not "don't check". Deploying is NOT covered: Netlify stays a manual, Matt-decides step (see Tech decisions).
+
+## Notes from Trackerator
+
+- 2026-08-27: Let’s finish this up with test suites, license and release.
