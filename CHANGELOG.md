@@ -23,7 +23,35 @@ what shipped, what's deferred, and the dated assumptions log.
   Saved settings written before this change come back with attract off. Turning it
   off while the ghost is mid-pattern hands the grid back immediately.
 
+### Added
+
+- **A test suite** — `npm test`. 192 tests, no dependencies, no build step. It boots
+  `index.html`'s inline script in a Node `vm` sandbox with a fake browser and a fake
+  Tone.js, so the clock, transport, touch input and `localStorage` are all controlled
+  by the test. `index.html` is read exactly as it ships.
+
 ### Fixed
+
+- **A corrupt saved pattern could stop the instrument booting at all.** A `null` entry
+  in the saved layer list threw while the script was still evaluating, so the panel came
+  up blank on every reboot until browser storage was cleared by hand. Junk entries now
+  fall back to that layer's defaults and the rest of the save loads normally.
+
+- **A layer could come back from storage in a mode that never sounds.** The saved mode
+  name was checked with a plain property lookup, so inherited names like `toString`
+  passed as valid — the layer drew normally, played nothing, and lit no mode button.
+
+- **Touch targets on mid-size screens were smaller than a fingertip.** The control strip
+  only stacked into two rows below 640px, but one row can't hold eleven controls at a
+  44px target until 852px — so an iPad in portrait got 38px buttons while a much smaller
+  phone got 48px. The strip now stacks below 852px. Fixing that also uncovered two
+  latent bugs in the stacked layout: the rows could overlap and hang off the bottom of
+  tall screens, and the single-row strip was two pixels too short to reach a 44px target
+  on short landscape screens.
+
+  Wall panel, desktop, tablet landscape and phone portrait layouts are unchanged. Tablet
+  portrait more than doubles its button size with no loss of grid. Near-square windows
+  and phone landscape trade some grid area for the bigger targets.
 
 - The grown-up panel no longer hangs off the edge of a narrow screen — its
   `max-width` sized the content box, so 68px of padding pushed it to 427px wide on

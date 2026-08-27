@@ -327,10 +327,15 @@ function layout() {
   canvas.style.width = innerWidth + 'px';
   canvas.style.height = innerHeight + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  // Below ~640px wide, one row can't fit all 10 controls at a touch-friendly size (see btnR),
-  // so stack modes on top and layers+clear below — each row then gets the full width to grow into.
-  twoRow = innerWidth < 640;
-  bar = twoRow ? Math.max(120, innerHeight * 0.18) : Math.max(64, innerHeight * 0.09); // controls live here, never over the grid
+  // Below 852px wide, one row can't fit all 11 controls at a touch-friendly size: btnR's
+  // no-overlap cap is (innerWidth/2 - 96)/15, which only reaches r = 22 (a 44px target) at
+  // 852px. So stack modes on top and layers+clear below — each row then gets the full width
+  // to grow into. Threshold was 640px until 2026-08-27, which left 640-852 (iPad portrait,
+  // phone landscape) on the one-row path with 38-43px buttons.
+  twoRow = innerWidth < 852;
+  bar = twoRow ? Math.max(120, innerHeight * 0.18) : Math.max(66, innerHeight * 0.09); // controls live here, never over the grid
+  // 66, not 64: the one-row radius is capped at bar * 0.34, so a 64px strip tops out at r = 21.8
+  // and misses a 44px touch target on short landscape screens. 66 clears it with 0.4px to spare.
   const size = Math.min(innerWidth, innerHeight - bar) * 0.94;
   cell = size / N;
   gap = cell * 0.14;
@@ -373,7 +378,10 @@ function btnR() {
     const rowH = bar / 2;
     const rModes = (innerWidth - 40 - 5 * 12) / 12; // 6 mode buttons across the full width
     const rRest = (innerWidth - 40 - 4 * 12) / 10;   // 3 layer buttons + play/pause + clear across the full width
-    return Math.min(rowH * 0.6, rModes, rRest);
+    // The two row centres sit bar/2 apart and the bottom row's centre is bar/4 above the
+    // screen edge, so r must stay under bar/4 (= rowH/2) or the rows overlap each other and
+    // the bottom one hangs off the screen. 0.45 leaves a visible gap between them.
+    return Math.min(rowH * 0.45, rModes, rRest);
   }
   return Math.min(bar * 0.34, (innerWidth / 2 - 96) / 15);
 }
@@ -1014,8 +1022,11 @@ function save() {
   if (!d) return;
   const t = performance.now();
   (Array.isArray(d.layers) ? d.layers : []).slice(0, LAYERS).forEach((s, i) => {
+    if (!s || typeof s !== 'object') return; // a junk entry skips its layer, never stops the boot
     const L = layers[i];
-    if (MODES[s.mode]) L.mode = s.mode;
+    // hasOwn, not truthiness: MODES['toString'] inherits a function and would set a mode that
+    // renders normally but never sounds.
+    if (Object.hasOwn(MODES, s.mode)) L.mode = s.mode;
     L.len = Math.min(N, Math.max(4, Math.round(+s.len || N)));
     for (const p of Array.isArray(s.placed) ? s.placed : []) {
       if (Number.isInteger(p.col) && Number.isInteger(p.row) && p.col >= 0 && p.col < N && p.row >= 0 && p.row < N) {

@@ -30,9 +30,22 @@ test('the grid is square, centred, and never sits under the control strip', () =
   }
 });
 
-test('narrow screens stack the control strip into two rows', () => {
-  assert.equal(boot({ width: 639, height: 800 }).app.twoRow, true);
-  assert.equal(boot({ width: 640, height: 800 }).app.twoRow, false);
+test('screens narrower than 852px stack the control strip into two rows', () => {
+  assert.equal(boot({ width: 851, height: 800 }).app.twoRow, true);
+  assert.equal(boot({ width: 852, height: 800 }).app.twoRow, false);
+});
+
+test('852 is exactly where one row can still hold a 44px target', () => {
+  // The threshold is not a round number picked by feel — it is where btnR's no-overlap
+  // cap, (innerWidth/2 - 96)/15, first reaches r = 22. Below it, one row would shrink
+  // buttons under a fingertip; at and above it, one row fits.
+  const oneRow = boot({ width: 852, height: 800 }).app;
+  assert.equal(oneRow.twoRow, false);
+  assert.ok(oneRow.btnR() * 2 >= 44, 'the first one-row width already clears 44px');
+
+  const justUnder = boot({ width: 851, height: 800 }).app;
+  assert.equal(justUnder.twoRow, true, 'one pixel narrower has to stack');
+  assert.ok(justUnder.btnR() * 2 >= 44);
 });
 
 test('the two-row strip is taller, so stacked buttons still get room', () => {
@@ -87,36 +100,45 @@ test('every strip control stays fully on screen', () => {
   }
 });
 
-test('touch targets stay finger-sized wherever the layout already manages it', () => {
+test('touch targets stay finger-sized on every screen', () => {
   const MIN_DIAMETER = 44; // the usual accessibility floor, in CSS px
-  // The 640-852px one-row band and near-square windows fall short today — see the todo below.
-  const ok = SCREENS.filter(([, w, h]) => !(w >= 640 && w < 852) && !(w === h));
-  for (const [name, w, h] of ok) {
+  for (const [name, w, h] of SCREENS) {
     const { app } = boot({ width: w, height: h });
     assert.ok(app.btnR() * 2 >= MIN_DIAMETER, `${name}: buttons are ${(app.btnR() * 2).toFixed(1)}px across`);
   }
 });
 
-test('stacking into two rows is what buys back the touch target size', () => {
-  // A 390px phone gets bigger buttons than a 768px tablet, because only the phone stacks.
-  const phone = boot({ width: 390, height: 844 }).app;
-  const tablet = boot({ width: 768, height: 1024 }).app;
-  assert.equal(phone.twoRow, true);
-  assert.equal(tablet.twoRow, false);
-  assert.ok(phone.btnR() > tablet.btnR(), 'the narrower screen has the larger buttons');
+test('touch targets hold up across the whole width range, not just the sampled screens', () => {
+  // From 375px (the narrowest phone worth targeting) up. Below that the geometry runs out:
+  // six mode buttons at 44px plus their gaps and margins need 364px of width, so a 320px
+  // screen cannot satisfy this layout at all — see the assertion below.
+  for (let w = 375; w <= 2560; w += 4) {
+    for (const h of [390, 800, 1024, 1920]) {
+      const { app } = boot({ width: w, height: h });
+      assert.ok(app.btnR() * 2 >= 44, `${w}x${h}: buttons are ${(app.btnR() * 2).toFixed(1)}px across`);
+    }
+  }
 });
 
-test(
-  'mid-width screens should stack too, instead of shrinking below a finger',
-  { todo: 'twoRow triggers at 640px, but one row only reaches a 44px target at 852px' },
-  () => {
-    const MIN_DIAMETER = 44;
-    for (const [name, w, h] of [['tablet portrait', 768, 1024], ['phone landscape', 844, 390]]) {
-      const { app } = boot({ width: w, height: h });
-      assert.ok(app.btnR() * 2 >= MIN_DIAMETER, `${name}: buttons are ${(app.btnR() * 2).toFixed(1)}px across`);
-    }
-  },
-);
+test('below 375px the layout runs out of width, and does so predictably', () => {
+  // Not a regression — six buttons plus gaps and margins simply do not fit. Pinned so that
+  // if the strip is ever reworked, what happens on a very small screen is a deliberate choice.
+  const tiny = boot({ width: 320, height: 480 }).app;
+  assert.equal(tiny.twoRow, true, 'it still stacks');
+  assert.ok(tiny.btnR() * 2 < 44, 'and shrinks rather than overflowing');
+  const modes = tiny.modeButtons();
+  assert.ok(modes.at(-1).x + modes.at(-1).r <= 320, 'the last mode button is still on screen');
+});
+
+test('a wider screen never means smaller buttons', () => {
+  // The bug this replaces: a 390px phone stacked and got 48px buttons, while a 768px
+  // tablet stayed on one row and got 38px. Stacking must never lose to not stacking.
+  const phone = boot({ width: 390, height: 1024 }).app;
+  const tablet = boot({ width: 768, height: 1024 }).app;
+  const desktop = boot({ width: 1440, height: 1024 }).app;
+  assert.ok(tablet.btnR() >= phone.btnR(), 'the tablet is not worse off than the phone');
+  assert.ok(desktop.btnR() >= 22, 'and the desktop clears the floor too');
+});
 
 test('the gear stays out of the grid, in whichever margin is wider', () => {
   for (const [name, w, h] of SCREENS) {

@@ -236,14 +236,48 @@ test('play/pause is deliberately not persisted — a rebooted kiosk comes back p
   assert.equal(boot({ storage: Object.fromEntries(h.storage) }).app.playing, true);
 });
 
-// --- Known gaps in the trust boundary (see BACKLOG.md "Bugs found by the test suite") ---
+// --- The trust boundary against entries that are not layers at all ---
 
-test('a null entry in layers should not stop the app booting', { todo: 'load() dereferences s.mode before checking s' }, () => {
+test('a null entry in layers does not stop the app booting', () => {
   const h = boot({ storage: withSave({ layers: [null] }) });
   assert.equal(h.app.layers[0].mode, 'score');
+  assert.equal(countOn(h.app.layers[0]), 0);
 });
 
-test('an Object.prototype key should not pass as a mode name', { todo: 'MODES[s.mode] is truthy for inherited keys' }, () => {
-  const h = boot({ storage: withSave({ layers: [{ mode: 'toString' }] }) });
-  assert.equal(h.app.layers[0].mode, 'score');
+test('junk in place of a layer skips that layer and leaves the rest intact', () => {
+  const h = boot({
+    storage: withSave({
+      layers: [null, 'nonsense', { mode: 'bounce', placed: [{ col: 4, row: 4 }] }],
+    }),
+  });
+  assert.equal(h.app.layers[0].mode, 'score', 'the null entry fell through to defaults');
+  assert.equal(h.app.layers[1].mode, 'score', 'so did the string');
+  assert.equal(h.app.layers[2].mode, 'bounce', 'and the good layer still loaded');
+  assert.equal(h.app.layers[2].grid[4][4], true);
+});
+
+test('every shape of junk entry is survivable', () => {
+  for (const junk of [null, undefined, 'a string', 42, true, []]) {
+    const h = boot({ storage: withSave({ layers: [junk], bpm: 130 }) });
+    assert.equal(h.app.layers[0].mode, 'score', `layers: [${JSON.stringify(junk)}]`);
+    assert.equal(h.transport.bpm.value, 130, 'and the rest of the settings still load');
+  }
+});
+
+test('an inherited Object.prototype key does not pass as a mode name', () => {
+  for (const key of ['toString', 'constructor', 'valueOf', 'hasOwnProperty', '__proto__']) {
+    const h = boot({ storage: withSave({ layers: [{ mode: key }] }) });
+    assert.equal(h.app.layers[0].mode, 'score', `mode "${key}" must not be accepted`);
+  }
+});
+
+test('a layer loaded from storage is always in a mode that can actually sound', () => {
+  const h = boot({
+    storage: withSave({ layers: [{ mode: 'toString', placed: [{ col: 0, row: 15 }] }] }),
+  });
+  const L = h.app.layers[0];
+  assert.ok(Object.hasOwn(h.app.MODES, L.mode), 'the mode is a real strategy');
+  h.clearLog();
+  h.tick(0);
+  assert.equal(h.notes().length, 1, 'and the restored pattern is audible, not a silently dead layer');
 });

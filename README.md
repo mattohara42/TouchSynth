@@ -128,9 +128,8 @@ as it ships** — there's no test build of the app to drift out of sync, and
 | `test/layout.test.js` | Layout maths across nine screens: touch target sizes, nothing overlapping. |
 | `test/attract-garden.test.js` | The two features that run with nobody in the room. |
 
-A handful of tests are marked `todo`: they describe behaviour the app doesn't have yet
-and are reported without failing the run. See **Bugs found by the test suite** in
-`BACKLOG.md`.
+The suite found three real defects on its first run, all since fixed — see **Bugs found
+by the test suite** in `BACKLOG.md` for what they were and what the fixes cost.
 
 ## Deploying
 
