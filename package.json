@@ -1,0 +1,10 @@
+{
+  "name": "touchsynth",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A Tenori-on-inspired grid music instrument for a kitchen wall panel.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  }
+}

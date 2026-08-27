@@ -51,13 +51,44 @@
 - [ ] Naming: "Grid Sings" is a working title. Candidates: Lumen, Ripple, ___
 - [ ] Volume strategy for kitchen/wall placement (time-of-day aware? panel hardware volume?)
 
+## Bugs found by the test suite (2026-08-27)
+
+Three real defects the suite turned up. None is fixed here — this pass was tests only, and
+the working rule is to surface rather than silently touch code. The first two are marked
+`todo` in `test/persistence.test.js`, the third in `test/layout.test.js`, so they're
+reported on every run without failing it. Each turns green the moment it's fixed.
+
+- **A `null` entry in the saved `layers` array stops the app booting.** `load()` does
+  `if (MODES[s.mode])` before checking that `s` is an object, so `{"layers":[null]}` in
+  `localStorage` throws a `TypeError` during script evaluation — the whole instrument
+  never starts, and the kiosk shows a blank screen on every reboot until storage is
+  cleared by hand. The load path explicitly calls localStorage "a trust boundary", and
+  this is the one input that gets through it. Fix is a guard: `if (!s || typeof s !== 'object') return;`
+  Severity: high for the wall-panel target (unrecoverable without a keyboard).
+- **Inherited `Object.prototype` keys pass the mode whitelist.** `MODES[s.mode]` is truthy
+  for `"toString"`, `"constructor"`, `"valueOf"` and friends, so a poisoned save sets a
+  layer to a mode that isn't one. The layer then renders normally but never sounds, and no
+  mode button lights up — a silently dead layer with no way to tell why. Fix:
+  `Object.hasOwn(MODES, s.mode)`. Severity: low (needs hand-edited storage), but it's the
+  same guard, two lines apart.
+- **Touch targets fall below 44px on screens 640–852px wide.** `twoRow` kicks in below
+  640px, but by `btnR()`'s own arithmetic the one-row strip doesn't reach a 44px target
+  until 852px. So iPad portrait (768px) gets 38.4px buttons and phone landscape (844px)
+  gets 43.5px — while a 390px phone, which *does* stack, gets 48.3px. The narrower screen
+  has the bigger buttons. This is the tablet-portrait gap the 2026-07-17 assumption
+  knowingly deferred; the suite now puts a number on the band and on where the threshold
+  would have to move (640 → 852). Fix is one constant, but it changes the layout on real
+  tablets, so it's Matt's call rather than a drive-by.
+
 ## Smells / Watch items
+- `paintCell` only stamps an expiry when `setCell` actually flips the cell, so dragging back over a Draw dot that's already lit does NOT refresh its life — the trail dies from where it was first painted, not from the last time the finger crossed it. Barely visible at 4 loops; note it in case Draw ever gets a longer life. Covered as current behaviour in `test/state.test.js`.
 - ~~FM bell voice (layer 3) volume set to -14 dB by ear-less arithmetic — NOBODY has heard the three voices together~~ RESOLVED 2026-07-13: Matt heard all three together; mix call was octaves, not levels — voice 2 (pluck) +1 octave, voice 3 (bells) −1 octave via per-voice detune (±1200 cents). Volumes stood.
 - Loudness with 3 dense layers: all layers share one -8 dB synth into the -3 dB limiter; heavy patterns on all three could pump the limiter. Listen on the panel; if it squashes, drop synth volume ~3 dB.
 - Push pad voice volume -12 dB set by ear-less arithmetic (same sin as the layer voices) — a held chord (several fingers) plus three sequencer layers all hit the one -3 dB limiter; listen before the wall, drop the pad if a big held chord pumps it.
 
 ## Assumptions log
 - (Claude Code: when proceeding unattended on an ambiguous decision, record it here with date + rationale)
+- 2026-08-27: Test suite added (187 tests, 0 dependencies, no build step) using Node's built-in `node --test` and a `vm` sandbox that boots `index.html`'s inline script against a fake browser and a fake Tone.js. Three approaches were on the table and the choice matters, so: (a) extract the app into ES modules and unit-test those — rejected, it breaks "single index.html, split into modules only when it earns it", and the split would be driven by testability rather than by the code asking for it; (b) drive a real browser with Playwright — rejected, it needs the Tone.js CDN at test time (so the suite goes red when the network does), it can't control `performance.now()` or the transport clock, and every timing assertion becomes a flake; (c) the vm sandbox — chosen, because it leaves the shipping file completely untouched, runs in under a second, and makes time, touch, audio and storage all deterministic inputs the test sets. The cost, recorded honestly: the harness fakes Tone.js and the canvas, so the suite proves the app asks for the right notes at the right times, NOT that they sound right — mix, latency and real audio behaviour on the panel remain ear-and-hardware questions, exactly as the Smells list already assumes. Internals are reached through an epilogue appended at load that exposes the script's lexical bindings via getters; `test/smoke.test.js` asserts the extracted source is verbatim from `index.html`, so the suite can't quietly stop testing the real thing. Suite was mutation-checked against eight deliberately injected bugs (inverted pitch mapping, uncapped ripple pool, missing note release, dropped BPM clamp, leaked pointers, and each `save()` call removed in turn) — all eight were caught, and the two that initially weren't led to the extra persistence assertions in `test/input.test.js`. Three known defects it found are logged under "Bugs found by the test suite" and left unfixed as `todo` tests: this pass was tests only.
 - 2026-08-26: Play/pause added to the control strip (11th control), sitting beside ✕ on the right rather than with the modes — it acts on the whole instrument, not on the active layer. Matt's report was "the Play button doesn't seem to do anything": that ▶ was the Score MODE button, and tapping it while already in Score is correctly a no-op, so the icon was writing a cheque the button couldn't cash. Two fixes, both Matt's call in chat: a real transport toggle (Tone.Transport.start/pause — pause, not stop, so the pattern picks up where it left off; the playhead and bounce balls freeze on their own because both interpolators already clamp at 1), and Score re-iconed to a playhead sweeping a row of dots so ▶ means exactly one thing on the strip. Paused wears the active-pink fill + ring so a silent panel shows why and how to fix it. Deliberately NOT persisted to localStorage: a kiosk that reboots should come back playing, not mysteriously silent. Narrow-phone bottom row now carries 5 buttons (3 layers + play/pause + ✕), so btnR's rRest divisor went 8 → 10.
 - 2026-08-26: Gear made bigger and brighter (r cap 20 → 28, floor 11 → 14; fill 0.12 → 0.22, ink 0.55 → 0.85) — Matt asked for adult mode to be public rather than hidden, which reverses the 2026-08-25 "deliberately quiet" call above. Kids finding it is the accepted, explicit cost. Geometry rule is unchanged: r still fits the wider grid margin, so the gear never lands on a cell.
 - 2026-08-25: Matt gave standing authorization to commit and merge without asking each time ("merge and commit now and in the future automatically"). Recorded in CLAUDE.md's working-style section so it survives into future sessions. Read as: keep the branch → PR → merge flow (the PR is the record of what changed and why, and it costs nothing now that no approval round-trip gates it) rather than pushing straight to main. Explicitly NOT extended to deploying — CLAUDE.md's tech decisions make Netlify a manual, Matt-decides step, and nothing in the ask touched that.

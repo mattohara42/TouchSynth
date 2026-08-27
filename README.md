@@ -101,6 +101,37 @@ npx http-server        # then open the printed http://localhost:… URL
 Web Audio needs a user gesture, so the first tap starts everything — that's the
 "tap anywhere to begin" hint.
 
+## Testing
+
+```bash
+npm test        # or: node --test "test/*.test.js"
+```
+
+No dependencies and still no build step. The suite boots `index.html`'s inline script
+inside a Node `vm` sandbox with a fake browser and a fake Tone.js, then drives it: the
+clock, the transport, pointer events and `localStorage` are all controlled by the test,
+so timing-dependent behaviour is deterministic rather than flaky. **`index.html` is read
+as it ships** — there's no test build of the app to drift out of sync, and
+`test/smoke.test.js` fails if the harness ever stops extracting the real thing.
+
+| File | What it covers |
+|------|----------------|
+| `test/harness.js` | The sandbox: fake DOM/canvas, Tone stub, controllable clock, pointer helpers. |
+| `test/smoke.test.js` | Guards on the harness itself, plus an hour of transport ticks with no unbounded growth. |
+| `test/scales.test.js` | The no-wrong-notes guarantee — every scale pentatonic, C3–C6, row 0 highest. |
+| `test/state.test.js` | `setCell` bookkeeping, tap order, mirror painting, clear, the capped ripple pool. |
+| `test/modes.test.js` | All six modes as "what fires when" strategies, loop lengths, and Reich phasing. |
+| `test/live-modes.test.js` | Push/Solo, and the invariant that every held note is released. |
+| `test/input.test.js` | The walk-up-and-play path: audio unlock, taps, drags, buttons, multi-touch. |
+| `test/panel.test.js` | Every grown-up control takes effect and is remembered. |
+| `test/persistence.test.js` | Save/load round trips, and the load path against deliberate garbage. |
+| `test/layout.test.js` | Layout maths across nine screens: touch target sizes, nothing overlapping. |
+| `test/attract-garden.test.js` | The two features that run with nobody in the room. |
+
+A handful of tests are marked `todo`: they describe behaviour the app doesn't have yet
+and are reported without failing the run. See **Bugs found by the test suite** in
+`BACKLOG.md`.
+
 ## Deploying
 
 Manual deploys only — **pushing to GitHub does not deploy.**
@@ -139,6 +170,7 @@ for hours unattended. Desktop browser is the dev environment.
 | `CLAUDE.md` | North star, architecture rules, and working agreements. |
 | `BACKLOG.md` | Everything shipped, deferred, and open, plus a dated assumptions log. |
 | `CONCEPTS.md` | Planning for two follow-on toys (Pond Chimes, Chord Garden) — future, separate repos. |
+| `test/` | The test suite. `npm test`. No dependencies, no build step. |
 | `artists.html` | The listening page the teaching-card QR points to. |
 | `*-mockup.html` | Approved visual specs for the follow-on toys (planning artifacts). |
 
