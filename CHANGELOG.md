@@ -9,6 +9,27 @@ what shipped, what's deferred, and the dated assumptions log.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.1.0] — 2026-08-27
+
+The instrument itself is unchanged to play; this release is about the things
+around it — a way to stop the panel singing, settings that are findable rather
+than hidden, a test suite, and the bugs that suite found.
+
+### Added
+
+- **A play/pause button** in the control strip, beside ✕. The one control that
+  stops the panel singing by itself. Deliberately not saved: a kiosk that reboots
+  comes back playing, not mysteriously silent.
+
+- **A test suite** — `npm test`. 192 tests, no dependencies, no build step. It boots
+  `index.html`'s inline script in a Node `vm` sandbox with a fake browser and a fake
+  Tone.js, so the clock, transport, touch input and `localStorage` are all controlled
+  by the test. `index.html` is read exactly as it ships.
+
+- **An MIT license**, and a social preview image for links to the repo.
+
 ### Changed
 
 - **The grown-up panel opens from a gear icon**, in the top-left corner where the
@@ -23,12 +44,12 @@ what shipped, what's deferred, and the dated assumptions log.
   Saved settings written before this change come back with attract off. Turning it
   off while the ghost is mid-pattern hands the grid back immediately.
 
-### Added
+- **Bigger touch targets on phones.** Below 640px wide the control strip stacks into
+  two rows, each sizing its buttons against the full width, so buttons grow from
+  roughly 13px to 48px across.
 
-- **A test suite** — `npm test`. 192 tests, no dependencies, no build step. It boots
-  `index.html`'s inline script in a Node `vm` sandbox with a fake browser and a fake
-  Tone.js, so the clock, transport, touch input and `localStorage` are all controlled
-  by the test. `index.html` is read exactly as it ships.
+- **The Score mode button is re-iconed** as a playhead sweeping a row of dots, so ▶
+  now means exactly one thing in the strip: play/pause.
 
 ### Fixed
 
@@ -108,4 +129,6 @@ and a 21.5" wall-panel as its primary target.
   owns timing, and a `requestAnimationFrame` **renderer** that owns nothing.
 - Vanilla JS, HTML Canvas, Tone.js 14.8.49 (pinned). No framework, no bundler.
 
+[Unreleased]: https://github.com/mattohara42/TouchSynth/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/mattohara42/TouchSynth/releases/tag/v1.1.0
 [1.0.0]: https://github.com/mattohara42/TouchSynth/releases/tag/v1.0.0

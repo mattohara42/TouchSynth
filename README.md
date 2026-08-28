@@ -168,11 +168,24 @@ for hours unattended. Desktop browser is the dev environment.
 | `README.md` | This file — what it is and how to run it. |
 | `CLAUDE.md` | North star, architecture rules, and working agreements. |
 | `BACKLOG.md` | Everything shipped, deferred, and open, plus a dated assumptions log. |
+| `CHANGELOG.md` | What changed in each tagged release. |
 | `CONCEPTS.md` | Planning for two follow-on toys (Pond Chimes, Chord Garden) — future, separate repos. |
 | `test/` | The test suite. `npm test`. No dependencies, no build step. |
+| `LICENSE` | MIT. |
 | `artists.html` | The listening page the teaching-card QR points to. |
 | `*-mockup.html` | Approved visual specs for the follow-on toys (planning artifacts). |
 
 Grid Sings is a working title. It is **not** a DAW, not settings-rich, and not part of
 Family Hub — it's a separate repo with a separate Netlify site. Every control has to
 earn its place against the "walk up and play" test.
+
+---
+
+## License
+
+[MIT](LICENSE) — do what you like with it, keep the copyright notice, no warranty.
+
+Tone.js is MIT too and is loaded from a CDN rather than vendored, so nothing here
+carries a heavier obligation than the line above. The instrument is a homage to
+Toshio Iwai's Tenori-on; the homage is in the interaction design, and none of
+Yamaha's or Iwai's code, assets, or trademarks are used or implied.
