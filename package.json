@@ -2,6 +2,7 @@
   "name": "touchsynth",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "description": "A Tenori-on-inspired grid music instrument for a kitchen wall panel.",
   "type": "module",
   "scripts": {
