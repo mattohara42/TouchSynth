@@ -11,6 +11,33 @@ A Tenori-on-inspired grid music instrument. **Faithful engine, kid-friendly skin
 - Not a settings-rich app. Every control added must justify itself against the "walk up and play" test.
 - Not part of Family Hub. Separate repo, separate Netlify site, same deployment pipeline.
 
+## ⚠️ Housekeeping — branch cleanup pending (2026-08-31)
+
+A cross-repo branch audit found **no unmerged work here** and no open PRs —
+just seven stale refs. All are squash-merged leftovers (squash rewrites the
+SHA, so the old ref reads as "ahead" forever) or superseded:
+
+```
+git push origin --delete claude/backlog-review-u6jv7y                # was c7da1c7
+git push origin --delete claude/create-release-0smk6a                # was 8869ee3
+git push origin --delete claude/larger-mobile-buttons-jixsxy         # was d0579a7
+git push origin --delete claude/project-docs-additions-9ahizu        # was f71a43d
+git push origin --delete claude/test-coverage-yj84xq                 # was ef30eec
+git push origin --delete claude/touchstnth-auto-demo-default-oprowm  # was 454a580
+git push origin --delete claude/whats-next-rk8dk3                    # was 2e6fba2
+```
+
+`claude/backlog-review-u6jv7y` is the only one that merges cleanly *and*
+changes anything — don't merge it. It adds a "Next visualizations" section
+proposing Pond Chimes then Chord Garden as the build order. Both shipped long
+ago as their own repos, so merging it would re-add a stale plan. `BACKLOG.md`'s
+2026-07-13 assumption already records that each toy gets its own repo.
+
+Reversible: `git push origin <sha>:refs/heads/<branch>`. Enabling
+**Settings → General → "Automatically delete head branches"** stops these
+accumulating — worth doing given the standing merge-without-asking
+authorization below means branches get created often.
+
 ## Status — M1–M3 shipped
 The M1 grid ("Score mode, one voice, tap-to-toggle, the signature ripple") shipped, and the instrument has since grown through M2 and M3. Live at touchsynth.netlify.app. See **README.md** for the full feature set and **BACKLOG.md** for the blow-by-blow of what shipped, what's deferred, and what's still open (plus the dated assumptions log).
 
